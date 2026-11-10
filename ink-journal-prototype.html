@@ -436,15 +436,18 @@
   }
 
   .fab{
-    position:absolute;right:22px;bottom:96px;
+    position:absolute;right:22px;bottom:98px;
     width:50px;height:50px;border-radius:50%;
     background:var(--ink);color:var(--paper);
     display:grid;place-items:center;
     box-shadow:0 14px 30px -8px rgba(27,25,23,.55);
     z-index:40;cursor:pointer;
-    transition:.3s;
+    opacity:0;pointer-events:none;
+    transform:translateY(10px);
+    transition:.34s cubic-bezier(.16,.84,.32,1);
   }
-  .fab:hover{transform:translateY(-2px) rotate(90deg)}
+  .fab.show{opacity:1;pointer-events:auto;transform:none}
+  .fab.show:hover{transform:translateY(-2px) rotate(90deg)}
 
   /* ============ 阅读 ============ */
   .now-reading{
@@ -600,6 +603,213 @@
   .suggest p{font-size:11.5px;line-height:1.75;color:var(--ink-2);letter-spacing:.02em}
   .suggest p b{font-weight:600}
 
+  /* ============ 习惯打卡 ============ */
+  .habit-card{
+    margin-top:22px;
+    border:1px solid var(--rule);
+    border-radius:16px;
+    padding:15px 16px 6px;
+    background:rgba(255,255,255,.3);
+  }
+  .hc-head{
+    display:flex;align-items:baseline;justify-content:space-between;
+    padding-bottom:10px;
+  }
+  .hc-head b{font-size:11px;letter-spacing:.18em;color:var(--ink-2);font-weight:600}
+  .hc-head a{
+    font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;cursor:pointer;
+    border-bottom:1px solid var(--rule);
+  }
+  .habit-row{
+    display:flex;align-items:center;gap:10px;
+    padding:11px 0;
+    border-top:1px solid var(--rule-soft);
+    cursor:pointer;
+  }
+  .habit-name{
+    flex:1;min-width:0;font-size:12.5px;letter-spacing:.02em;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .habit-dots{display:flex;gap:3px;flex:0 0 auto}
+  .hd{
+    display:block;width:5px;height:5px;border-radius:50%;
+    background:rgba(27,25,23,.14);
+  }
+  .hd.on{background:var(--sage)}
+  .hd.now{background:var(--cinnabar);box-shadow:0 0 0 2px var(--cinnabar-soft)}
+  .habit-streak{
+    flex:0 0 auto;width:44px;text-align:right;
+    font-size:10px;color:var(--cinnabar);letter-spacing:.02em;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ============ 心情 ============ */
+  .mood-card{
+    margin-top:14px;
+    border:1px solid var(--rule);
+    border-radius:16px;
+    padding:15px 16px 16px;
+  }
+  .mood-card .q{
+    display:flex;align-items:baseline;justify-content:space-between;
+    margin-bottom:13px;
+  }
+  .mood-card .q b{
+    font-family:var(--serif);font-size:13.5px;font-weight:600;letter-spacing:.03em;
+  }
+  .mood-card .q a{
+    font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;cursor:pointer;
+    border-bottom:1px solid var(--rule);
+  }
+  .moods{display:flex;gap:6px}
+  .mood{
+    flex:1;text-align:center;
+    padding:9px 0;
+    border:1px solid transparent;
+    border-radius:9px;
+    background:var(--paper-2);
+    font-family:var(--sans);font-size:10px;letter-spacing:.06em;color:var(--ink-2);
+    cursor:pointer;transition:.24s;
+  }
+  .mood:hover{background:var(--paper-3)}
+  .mood.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .week-mood{
+    display:flex;align-items:flex-end;gap:5px;
+    height:26px;margin-top:14px;
+  }
+  .week-mood span{
+    flex:1;background:var(--sage);opacity:.38;
+    border-radius:2px 2px 0 0;
+    transition:.3s;
+  }
+  .week-mood span.now{background:var(--cinnabar);opacity:.78}
+
+  /* ============ 剪藏卡片 ============ */
+  .snippet{padding:18px 0 20px;border-top:1px solid var(--rule)}
+  .snippet .src-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .snippet .domain{
+    font-size:9.5px;letter-spacing:.08em;color:var(--ink-2);
+    border:1px solid var(--rule);border-radius:3px;padding:2px 6px;
+  }
+  .snippet .time{font-size:9.5px;color:var(--ink-3);letter-spacing:.06em}
+  .snippet h5{
+    font-size:14px;font-weight:600;letter-spacing:.01em;line-height:1.5;
+    margin-bottom:8px;color:var(--ink);
+  }
+  .snippet p{
+    font-size:12px;line-height:1.9;color:var(--ink-2);letter-spacing:.01em;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .snippet .open{
+    margin-top:11px;display:flex;align-items:center;gap:6px;
+    font-size:10px;letter-spacing:.1em;color:var(--cinnabar);cursor:pointer;
+  }
+
+  /* ============ 二级页面 ============ */
+  .subpage{
+    position:absolute;inset:0;z-index:58;
+    background:var(--paper);
+    display:flex;flex-direction:column;
+    transform:translateY(100%);
+    visibility:hidden;
+    transition:transform .42s cubic-bezier(.16,.84,.32,1), visibility .42s;
+  }
+  .subpage.open{transform:none;visibility:visible}
+  .sub-status{
+    height:46px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:12.5px;font-weight:600;letter-spacing:.02em;
+  }
+  .sub-head{
+    display:flex;align-items:center;gap:14px;
+    padding:4px 22px 18px;
+  }
+  .back{
+    width:32px;height:32px;flex:0 0 auto;
+    border-radius:50%;border:1px solid var(--rule);
+    background:none;color:var(--ink);
+    display:grid;place-items:center;cursor:pointer;
+    transition:.25s;
+  }
+  .back:hover{background:rgba(27,25,23,.05)}
+  .sub-head h2{
+    font-family:var(--serif);font-size:24px;font-weight:600;letter-spacing:.05em;
+  }
+  .sub-body{
+    flex:1;overflow-y:auto;
+    padding:0 22px 40px;
+    scrollbar-width:none;
+  }
+  .sub-body::-webkit-scrollbar{display:none}
+
+  .hd-row{
+    display:flex;align-items:center;gap:13px;
+    padding:16px 0;
+    border-bottom:1px solid var(--rule-soft);
+  }
+  .hd-row .info{flex:1;min-width:0}
+  .hd-row .info b{display:block;font-size:13.5px;font-weight:500;letter-spacing:.02em}
+  .hd-row .info span{display:block;margin-top:5px;font-size:10.5px;color:var(--ink-3);letter-spacing:.04em}
+  .hd-row.done .check{background:var(--sage);border-color:var(--sage)}
+  .hd-row.done .check svg{opacity:1;transform:none}
+  .hd-row.done .info b{color:var(--ink-3);text-decoration:line-through;text-decoration-color:rgba(27,25,23,.35)}
+  .streak-badge{
+    flex:0 0 auto;text-align:right;
+    font-family:var(--serif);font-size:16px;color:var(--cinnabar);
+    font-variant-numeric:tabular-nums;
+  }
+  .streak-badge i{
+    display:block;font-style:normal;font-size:9px;letter-spacing:.1em;
+    color:var(--ink-3);margin-top:2px;
+  }
+
+  .heat{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px}
+  .hcell{
+    display:block;aspect-ratio:1/1;border-radius:3px;
+    background:rgba(27,25,23,.07);
+  }
+  .hcell.l1{background:rgba(111,123,104,.3)}
+  .hcell.l2{background:rgba(111,123,104,.58)}
+  .hcell.l3{background:var(--sage)}
+  .heat-note{
+    margin-top:12px;font-size:10px;color:var(--ink-3);letter-spacing:.06em;line-height:1.7;
+  }
+
+  .week-chart{
+    display:flex;align-items:flex-end;gap:9px;
+    height:104px;margin:8px 0 4px;
+  }
+  .wc-col{
+    flex:1;height:100%;
+    display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;
+  }
+  .wc-bar{
+    width:100%;border-radius:3px 3px 0 0;
+    background:var(--sage);opacity:.42;
+  }
+  .wc-col.now .wc-bar{background:var(--cinnabar);opacity:.8}
+  .wc-col em{
+    font-style:normal;font-size:9.5px;color:var(--ink-3);letter-spacing:.06em;
+  }
+  .wc-col.now em{color:var(--cinnabar)}
+
+  .entry{
+    display:flex;gap:12px;align-items:flex-start;
+    padding:15px 0;border-bottom:1px solid var(--rule-soft);
+  }
+  .entry .e-date{
+    flex:0 0 44px;padding-top:2px;
+    font-size:10px;color:var(--ink-3);letter-spacing:.04em;line-height:1.6;
+    font-variant-numeric:tabular-nums;
+  }
+  .entry .e-main{flex:1;min-width:0}
+  .entry .e-main b{font-size:12.5px;font-weight:500;letter-spacing:.02em;display:block}
+  .entry .e-main p{margin-top:5px;font-size:11px;color:var(--ink-3);line-height:1.75;letter-spacing:.01em}
+  .entry .e-tag{
+    flex:0 0 auto;font-size:9.5px;letter-spacing:.08em;color:var(--sage);
+    border:1px solid rgba(111,123,104,.35);border-radius:3px;padding:2px 6px;
+  }
+
   /* ============ 底部标签栏 ============ */
   .tabbar{
     position:absolute;left:0;right:0;bottom:0;
@@ -673,6 +883,7 @@
     <li><i>03</i><span><b>待办</b>　按轻重，一件一件来</span></li>
     <li><i>04</i><span><b>阅读</b>　继续昨天那一页</span></li>
     <li><i>05</i><span><b>计划</b>　把一天排开来看</span></li>
+    <li><i>＋</i><span><b>习惯 · 心情 · 剪藏</b>　二级页面，从今日页进入</span></li>
   </ul>
   <div class="hint">点击底部标签切换页面</div>
 </aside>
@@ -734,12 +945,63 @@
           </div>
         </div>
 
-        <div class="sec-head rise" style="--i:4">
+        <div class="habit-card rise" style="--i:4">
+          <div class="hc-head">
+            <b>习惯 · 今天</b>
+            <a class="js-sub" data-sub="habits">查看全部</a>
+          </div>
+          <div class="habit-row js-sub" data-sub="habits">
+            <div class="habit-name">晨间阅读 20 分钟</div>
+            <div class="habit-dots">
+              <i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd now"></i>
+            </div>
+            <div class="habit-streak">12 天</div>
+          </div>
+          <div class="habit-row js-sub" data-sub="habits">
+            <div class="habit-name">背 10 个单词</div>
+            <div class="habit-dots">
+              <i class="hd on"></i><i class="hd"></i><i class="hd on"></i><i class="hd on"></i><i class="hd"></i><i class="hd on"></i><i class="hd now"></i>
+            </div>
+            <div class="habit-streak">5 天</div>
+          </div>
+          <div class="habit-row js-sub" data-sub="habits">
+            <div class="habit-name">睡前不碰手机</div>
+            <div class="habit-dots">
+              <i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd on"></i><i class="hd"></i>
+            </div>
+            <div class="habit-streak">21 天</div>
+          </div>
+        </div>
+
+        <div class="mood-card rise" style="--i:5">
+          <div class="q">
+            <b>今天心情如何？</b>
+            <a class="js-sub" data-sub="mood">心情日记</a>
+          </div>
+          <div class="moods">
+            <button class="mood">低落</button>
+            <button class="mood">疲惫</button>
+            <button class="mood on">平静</button>
+            <button class="mood">轻快</button>
+            <button class="mood">明亮</button>
+          </div>
+          <div class="week-mood">
+            <span style="height:42%"></span>
+            <span style="height:68%"></span>
+            <span style="height:30%"></span>
+            <span style="height:82%"></span>
+            <span style="height:56%"></span>
+            <span style="height:74%"></span>
+            <span class="now" style="height:90%"></span>
+          </div>
+        </div>
+
+        <div class="sec-head rise" style="--i:6">
           <h4>今日安排</h4>
           <a href="#">全部计划</a>
         </div>
 
-        <div class="timeline rise" style="--i:5">
+        <div class="timeline rise" style="--i:7">
           <div class="tl-item">
             <div class="tl-time">08:30</div>
             <div class="tl-body">
@@ -788,6 +1050,7 @@
           <button class="chip on">全部</button>
           <button class="chip">哲思</button>
           <button class="chip">写作</button>
+          <button class="chip">剪藏</button>
           <button class="chip">生活</button>
           <button class="chip">未分类</button>
         </div>
@@ -828,9 +1091,22 @@
           </div>
         </div>
 
-        <button class="add-quote rise" style="--i:5">
+        <div class="snippet rise" style="--i:5">
+          <div class="src-row">
+            <span class="domain">mp.weixin.qq.com</span>
+            <span class="time">今天 10:12 剪藏</span>
+          </div>
+          <h5>好的笔记系统，不是收集，而是让想法重新相遇</h5>
+          <p>大多数人把收藏当成学习，但收藏只完成了「存」，没有完成「取」。真正有效的做法是：每周固定时间回看，把新的碎片和旧的想法并置，让它们彼此解释。知识不是堆积起来的，是在重逢时生长出来的。</p>
+          <div class="open">
+            阅读原文
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+          </div>
+        </div>
+
+        <button class="add-quote rise" style="--i:6">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-          记下一句话
+          记下一句话 / 粘贴一条剪藏
         </button>
       </section>
 
@@ -893,10 +1169,6 @@
             <div class="t-title">整理手机里散落的语录，统一归档</div>
             <div class="t-sub"><span class="dot low"></span>周末 · 生活</div>
           </div>
-        </div>
-
-        <div class="fab">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </div>
       </section>
 
@@ -1047,6 +1319,171 @@
 
     </div>
 
+    <!-- 浮动新增按钮（仅待办页显示） -->
+    <div class="fab" id="fab">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </div>
+
+    <!-- ================= 二级页面：习惯 ================= -->
+    <div class="subpage" id="sub-habits">
+      <div class="sub-status">
+        <span>9:41</span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 8v2M4.5 6v4M8 3.5v6.5M11.5 1.5v8.5"/></svg>
+          <svg width="23" height="11" viewBox="0 0 23 11" fill="none">
+            <rect x="1" y="1.5" width="18" height="8" rx="2.2" stroke="currentColor" stroke-width="1.1" opacity=".45"/>
+            <rect x="2.6" y="3" width="13" height="5" rx="1.2" fill="currentColor"/>
+          </svg>
+        </span>
+      </div>
+
+      <div class="sub-head">
+        <button class="back js-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h2>习惯</h2>
+      </div>
+
+      <div class="sub-body">
+        <div class="todo-stat" style="padding-bottom:4px">
+          <div><b>2/3</b>今日完成</div>
+          <div><b>21</b>最长连续</div>
+          <div><b>86%</b>本周达成</div>
+        </div>
+
+        <div class="hd-row">
+          <div class="check">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#F6F2E9" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg>
+          </div>
+          <div class="info">
+            <b>晨间阅读 20 分钟</b>
+            <span>每天 · 08:30</span>
+          </div>
+          <div class="streak-badge">12<i>天连续</i></div>
+        </div>
+
+        <div class="hd-row">
+          <div class="check">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#F6F2E9" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg>
+          </div>
+          <div class="info">
+            <b>背 10 个单词</b>
+            <span>每天 · 通勤路上</span>
+          </div>
+          <div class="streak-badge">5<i>天连续</i></div>
+        </div>
+
+        <div class="hd-row">
+          <div class="check"></div>
+          <div class="info">
+            <b>睡前不碰手机</b>
+            <span>每天 · 23:00 前</span>
+          </div>
+          <div class="streak-badge">21<i>天连续</i></div>
+        </div>
+
+        <div class="hd-row">
+          <div class="check"></div>
+          <div class="info">
+            <b>给朋友写一封信</b>
+            <span>每周日 · 手写</span>
+          </div>
+          <div class="streak-badge">3<i>周连续</i></div>
+        </div>
+
+        <div class="sec-head">
+          <h4>近 30 天</h4>
+        </div>
+        <div class="heat" id="heat"></div>
+        <p class="heat-note">颜色越深，当天完成的习惯越多。空白代表没有记录。</p>
+      </div>
+    </div>
+
+    <!-- ================= 二级页面：心情 ================= -->
+    <div class="subpage" id="sub-mood">
+      <div class="sub-status">
+        <span>9:41</span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 8v2M4.5 6v4M8 3.5v6.5M11.5 1.5v8.5"/></svg>
+          <svg width="23" height="11" viewBox="0 0 23 11" fill="none">
+            <rect x="1" y="1.5" width="18" height="8" rx="2.2" stroke="currentColor" stroke-width="1.1" opacity=".45"/>
+            <rect x="2.6" y="3" width="13" height="5" rx="1.2" fill="currentColor"/>
+          </svg>
+        </span>
+      </div>
+
+      <div class="sub-head">
+        <button class="back js-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h2>心情</h2>
+      </div>
+
+      <div class="sub-body">
+        <div class="eyebrow">Today</div>
+        <p style="font-family:var(--serif);font-size:15px;letter-spacing:.03em;margin:9px 0 14px">此刻，你感觉如何？</p>
+
+        <div class="moods">
+          <button class="mood">低落</button>
+          <button class="mood">疲惫</button>
+          <button class="mood on">平静</button>
+          <button class="mood">轻快</button>
+          <button class="mood">明亮</button>
+        </div>
+
+        <div class="sec-head">
+          <h4>这一周</h4>
+          <a href="#">月视图</a>
+        </div>
+
+        <div class="week-chart">
+          <div class="wc-col"><div class="wc-bar" style="height:42%"></div><em>一</em></div>
+          <div class="wc-col"><div class="wc-bar" style="height:68%"></div><em>二</em></div>
+          <div class="wc-col"><div class="wc-bar" style="height:30%"></div><em>三</em></div>
+          <div class="wc-col"><div class="wc-bar" style="height:82%"></div><em>四</em></div>
+          <div class="wc-col"><div class="wc-bar" style="height:56%"></div><em>五</em></div>
+          <div class="wc-col"><div class="wc-bar" style="height:74%"></div><em>六</em></div>
+          <div class="wc-col now"><div class="wc-bar" style="height:90%"></div><em>日</em></div>
+        </div>
+
+        <div class="sec-head">
+          <h4>最近记录</h4>
+        </div>
+
+        <div class="entry">
+          <div class="e-date">11.09<br>周一</div>
+          <div class="e-main">
+            <b>加班到九点，但把周报写完了</b>
+            <p>身体很累，心里还算踏实。明天想早点睡。</p>
+          </div>
+          <span class="e-tag">疲惫</span>
+        </div>
+
+        <div class="entry">
+          <div class="e-date">11.08<br>周日</div>
+          <div class="e-main">
+            <b>在公园读了一下午书</b>
+            <p>风很舒服，很久没有这样什么都不赶的下午了。</p>
+          </div>
+          <span class="e-tag">明亮</span>
+        </div>
+
+        <div class="entry">
+          <div class="e-date">11.07<br>周六</div>
+          <div class="e-main">
+            <b>一个人吃了顿很慢的晚饭</b>
+            <p>没有刷手机，只是看着窗外发呆。</p>
+          </div>
+          <span class="e-tag">平静</span>
+        </div>
+
+        <button class="add-quote" style="margin-top:18px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          记录此刻
+        </button>
+      </div>
+    </div>
+
     <!-- ================= 标签栏 ================= -->
     <nav class="tabbar">
       <button class="tab on" data-target="today">
@@ -1099,6 +1536,7 @@
 
       tabs.forEach(t => t.classList.toggle('on', t === tab));
       views.forEach(v => v.classList.toggle('active', v.dataset.view === target));
+      document.getElementById('fab').classList.toggle('show', target === 'todo');
 
       // 每次进入页面重播错落动画
       const active = document.querySelector('.view.active');
@@ -1113,10 +1551,12 @@
     });
   });
 
-  // 勾选待办
+  // 勾选待办 / 习惯
   document.querySelectorAll('.check').forEach(box => {
-    box.addEventListener('click', () => {
-      box.closest('.task').classList.toggle('done');
+    box.addEventListener('click', e => {
+      e.stopPropagation();
+      const item = box.closest('.task') || box.closest('.hd-row');
+      if (item) item.classList.toggle('done');
     });
   });
 
@@ -1127,6 +1567,48 @@
       chip.classList.add('on');
     });
   });
+
+  // 二级页面：打开 / 返回
+  document.querySelectorAll('.js-sub').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const page = document.getElementById('sub-' + el.dataset.sub);
+      if (!page) return;
+      page.classList.add('open');
+      const body = page.querySelector('.sub-body');
+      if (body) body.scrollTop = 0;
+    });
+  });
+  document.querySelectorAll('.js-back').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.subpage').forEach(p => p.classList.remove('open'));
+    });
+  });
+
+  // 心情选择
+  document.querySelectorAll('.moods').forEach(group => {
+    group.querySelectorAll('.mood').forEach(m => {
+      m.addEventListener('click', () => {
+        group.querySelectorAll('.mood').forEach(x => x.classList.remove('on'));
+        m.classList.add('on');
+      });
+    });
+  });
+
+  // 30 天习惯热力图
+  const heatLevels = [
+    0,1,2,3,2,1,1,
+    2,3,3,2,0,1,2,
+    1,2,3,3,2,2,1,
+    3,1,2,3,2,0,1,
+    2,3
+  ];
+  const heatEl = document.getElementById('heat');
+  if (heatEl) {
+    heatEl.innerHTML = heatLevels
+      .map(l => '<i class="hcell' + (l ? ' l' + l : '') + '"></i>')
+      .join('');
+  }
 </script>
 
 </body>

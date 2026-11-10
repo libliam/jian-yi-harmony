@@ -7,7 +7,7 @@
  */
 
 import { relationalStore } from '@kit.ArkData';
-import { db, newId } from './InkDb';
+import { db, newId } from './JianYiDb';
 import { HabitRow, HabitPeriod } from './Models';
 import { str, strOrNull, num } from './RowUtil';
 

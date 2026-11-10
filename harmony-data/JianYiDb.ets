@@ -1,7 +1,7 @@
 /**
- * 墨记 · 本地数据库
+ * 简忆 · 本地数据库
  *
- * 存放位置：应用沙箱 databases/ink.db（由 RDB 自动管理）
+ * 存放位置：应用沙箱 databases/jianyi.db（由 RDB 自动管理）
  * 注意：这份代码是「照抄能懂」的参考实现，接口名以你所用 SDK 版本的 d.ts 为准。
  */
 
@@ -10,7 +10,7 @@ import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { EntryRow, EntryType, TodoRow, TodoBucket, Priority } from './Models';
 
-const STORE_NAME: string = 'ink.db';
+const STORE_NAME: string = 'jianyi.db';
 
 /** 每次改表结构，版本号 +1，并在 migrate() 里加一段 */
 const DB_VERSION: number = 1;

@@ -6,7 +6,7 @@
  */
 
 import { relationalStore } from '@kit.ArkData';
-import { db, newId } from './InkDb';
+import { db, newId } from './JianYiDb';
 import { EventRow } from './Models';
 import { str, num, numOrNull } from './RowUtil';
 

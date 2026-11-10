@@ -845,6 +845,47 @@
   .tool:hover{background:var(--paper-2)}
   .reader-progress{flex:1;text-align:center;font-size:10px;color:var(--ink-3);letter-spacing:.1em}
 
+  /* 阅读翻页 */
+  .reader-progressbar{
+    height:2px;background:rgba(27,25,23,.1);
+    margin:0 22px 10px;border-radius:2px;overflow:hidden;
+  }
+  .reader-progressbar i{
+    display:block;height:100%;width:40%;
+    background:var(--cinnabar);
+    border-radius:2px;transition:width .4s cubic-bezier(.16,.84,.32,1);
+  }
+  .reader-hint{
+    text-align:center;margin-top:20px;
+    font-size:9.5px;color:var(--ink-3);letter-spacing:.18em;
+  }
+
+  /* 语录详情 */
+  .quote,.snippet{cursor:pointer}
+  .qd-wrap{padding-top:10px}
+  .qd-mark{
+    font-family:var(--serif);font-size:46px;line-height:.75;
+    color:var(--cinnabar);opacity:.3;
+  }
+  .qd-text{
+    font-family:var(--serif);font-size:19px;line-height:2.05;
+    letter-spacing:.02em;margin:16px 0 22px;text-align:justify;
+  }
+  .qd-src{font-size:11.5px;color:var(--ink-3);letter-spacing:.08em}
+  .qd-src b{color:var(--ink-2);font-weight:500}
+  .qd-tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:16px}
+  .qd-note{
+    margin-top:24px;padding-left:14px;
+    border-left:2px solid var(--rule);
+    font-size:12px;line-height:1.95;color:var(--ink-2);letter-spacing:.02em;
+  }
+  .qd-meta{
+    display:flex;gap:18px;margin-top:24px;padding-top:14px;
+    border-top:1px solid var(--rule);
+    font-size:10px;color:var(--ink-3);letter-spacing:.08em;
+  }
+  .qd-actions{display:flex;gap:10px;margin-top:26px}
+
   /* ============ 底部弹层 ============ */
   .sheet-mask{
     position:absolute;inset:0;z-index:64;
@@ -1171,7 +1212,9 @@
           <button class="chip">未分类</button>
         </div>
 
-        <div class="quote rise" style="--i:2">
+        <div class="quote rise js-quote" style="--i:2"
+             data-text="我步入丛林，因为我希望活得有意义，我希望活得深刻，汲取生命中所有的精华。"
+             data-src="<b>梭罗</b>　《瓦尔登湖》" data-date="2026.10.28" data-tag="哲思,自然">
           <span class="qm">“</span>
           <p>我步入丛林，因为我希望活得有意义，我希望活得深刻，汲取生命中所有的精华。</p>
           <div class="meta">
@@ -1183,7 +1226,9 @@
           </div>
         </div>
 
-        <div class="quote rise" style="--i:3">
+        <div class="quote rise js-quote" style="--i:3"
+             data-text="我们读书，然后才知道自己并不孤单。"
+             data-src="<b>罗曼·罗兰</b>　读书笔记" data-date="2026.10.19" data-tag="阅读,写作">
           <span class="qm">“</span>
           <p>我们读书，然后才知道自己并不孤单。</p>
           <div class="meta">
@@ -1195,7 +1240,9 @@
           </div>
         </div>
 
-        <div class="quote rise" style="--i:4">
+        <div class="quote rise js-quote" style="--i:4"
+             data-text="凡是过往，皆为序章。"
+             data-src="<b>莎士比亚</b>　《暴风雨》" data-date="2026.09.30" data-tag="哲思">
           <span class="qm">“</span>
           <p>凡是过往，皆为序章。</p>
           <div class="meta">
@@ -1207,7 +1254,9 @@
           </div>
         </div>
 
-        <div class="snippet rise" style="--i:5">
+        <div class="snippet rise js-quote" style="--i:5"
+             data-text="大多数人把收藏当成学习，但收藏只完成了「存」，没有完成「取」。知识不是堆积起来的，是在重逢时生长出来的。"
+             data-src="<b>公众号</b>　好的笔记系统，不是收集，而是让想法重新相遇" data-date="今天 10:12" data-tag="剪藏,笔记">
           <div class="src-row">
             <span class="domain">mp.weixin.qq.com</span>
             <span class="time">今天 10:12 剪藏</span>
@@ -1625,7 +1674,10 @@
         <h2 style="font-size:17px;letter-spacing:.06em">瓦尔登湖</h2>
       </div>
 
-      <div class="sub-body reader-body" style="padding-bottom:92px">
+      <div class="reader-progressbar"><i id="reader-bar"></i></div>
+
+      <div class="sub-body reader-body" id="reader-body" style="padding-bottom:92px">
+        <div id="reader-content">
         <div class="chapter-no">CHAPTER 05</div>
         <div class="chapter-title">湖边的清晨</div>
 
@@ -1640,15 +1692,60 @@
           <span>第 128 页</span>
           <span>本章剩余 12 页</span>
         </div>
+        </div>
+        <div class="reader-hint">左右滑动翻页</div>
       </div>
 
       <div class="reader-tools">
         <button class="tool">A-</button>
         <button class="tool" style="font-size:14px">A+</button>
-        <div class="reader-progress">40% · 第 128 / 320 页</div>
+        <div class="reader-progress" id="reader-progress">40% · 第 128 / 320 页</div>
         <button class="tool" data-sheet="quote">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6.5H5.8A1.8 1.8 0 0 0 4 8.3v3.2a1.8 1.8 0 0 0 1.8 1.8h1.7v.9c0 1.4-1 2.4-2.5 2.6"/><path d="M20 6.5h-3.7a1.8 1.8 0 0 0-1.8 1.8v3.2a1.8 1.8 0 0 0 1.8 1.8h1.7v.9c0 1.4-1 2.4-2.5 2.6"/></svg>
         </button>
+      </div>
+    </div>
+
+    <!-- ================= 二级页面：语录详情 ================= -->
+    <div class="subpage" id="sub-quote">
+      <div class="sub-status">
+        <span>9:41</span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 8v2M4.5 6v4M8 3.5v6.5M11.5 1.5v8.5"/></svg>
+          <svg width="23" height="11" viewBox="0 0 23 11" fill="none">
+            <rect x="1" y="1.5" width="18" height="8" rx="2.2" stroke="currentColor" stroke-width="1.1" opacity=".45"/>
+            <rect x="2.6" y="3" width="13" height="5" rx="1.2" fill="currentColor"/>
+          </svg>
+        </span>
+      </div>
+
+      <div class="sub-head">
+        <button class="back js-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h2 style="font-size:17px;letter-spacing:.06em">摘录</h2>
+      </div>
+
+      <div class="sub-body">
+        <div class="qd-wrap">
+          <div class="qd-mark">“</div>
+          <div class="qd-text" id="qd-text"></div>
+          <div class="qd-src" id="qd-src"></div>
+          <div class="qd-tags" id="qd-tags"></div>
+
+          <div class="qd-note">那天读到这句的时候正在地铁上，抬头发现坐过了一站。有些句子就是会让人停一下。</div>
+
+          <div class="qd-meta">
+            <span id="qd-date"></span>
+            <span>已归档 · 未同步</span>
+          </div>
+
+          <div class="qd-actions">
+            <button class="btn">收藏</button>
+            <button class="btn">复制</button>
+            <button class="btn primary">编辑</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1913,6 +2010,131 @@
     });
   });
   maskEl.addEventListener('click', closeSheet);
+
+  /* ---------- 语录详情 ---------- */
+  document.querySelectorAll('.js-quote').forEach(card => {
+    card.addEventListener('click', () => {
+      document.getElementById('qd-text').textContent = card.dataset.text || '';
+      document.getElementById('qd-src').innerHTML = card.dataset.src || '';
+      document.getElementById('qd-date').textContent = card.dataset.date || '';
+      document.getElementById('qd-tags').innerHTML = (card.dataset.tag || '')
+        .split(',').filter(Boolean)
+        .map(t => '<span class="e-tag">' + t + '</span>').join('');
+      const page = document.getElementById('sub-quote');
+      page.classList.add('open');
+      page.querySelector('.sub-body').scrollTop = 0;
+    });
+  });
+
+  /* ---------- 阅读翻页 ---------- */
+  const CHAPTERS = [
+    {
+      no: 'CHAPTER 04', title: '声音与孤独', pct: 32,
+      page: '第 96 页', rest: '本章剩余 8 页',
+      paras: [
+        '傍晚的时候，林子里只剩下两种声音：风穿过松针，和我翻动书页的响动。',
+        '我常常一整晚不说话，却并不觉得寂寞。人多的场合里反而更容易感到孤单，因为那时你不得不扮演一个角色。'
+      ]
+    },
+    {
+      no: 'CHAPTER 05', title: '湖边的清晨', pct: 40,
+      page: '第 128 页', rest: '本章剩余 12 页',
+      paras: [
+        '清晨醒来的时候，湖面还浮着一层薄薄的白气。风没有起，水是静的，像一块尚未被人打磨过的石头，安安静静地躺在树林中间。',
+        '我在门前坐了很久，什么也没有做。远处的松树一点点从雾里显出来，先是最高的那一棵，然后是整片山坡。日光并不热烈，只是慢慢地落下来，落在水面上，落在我的手上。',
+        '人其实不需要很多。一张桌子，一把椅子，一扇能看见树的窗，就足够度过一个完整而清醒的上午。我们以为缺少的是东西，后来才明白，缺少的是不被打扰的时间。',
+        '那天我把这句话记在了本子上，又在旁边画了一条很短的横线，作为标记。许多年后再翻开，横线还在，句子也还在，只是当时的心情已经很难准确地回想起来了。'
+      ]
+    },
+    {
+      no: 'CHAPTER 06', title: '更高的规律', pct: 52,
+      page: '第 168 页', rest: '本章剩余 9 页',
+      paras: [
+        '我搬到湖边，并不是为了逃避什么，而是想把生活压缩到只剩必要的部分，看看自己究竟需要多少。',
+        '结果比我预想的少得多。食物、住处、几本书、一两个可以说话的人，就够了。剩下的，多半是别人告诉我应该要的。',
+        '夜里我常想，如果一个人能安静地过完一天，不被任何声音催促，那这一天大约就是值得的。'
+      ]
+    }
+  ];
+
+  const rBody = document.getElementById('reader-body');
+  const rContent = document.getElementById('reader-content');
+  const rBar = document.getElementById('reader-bar');
+  const rProg = document.getElementById('reader-progress');
+  let rIndex = 1;
+  let rLock = false;
+
+  function renderChapter(i) {
+    const c = CHAPTERS[i];
+    rContent.innerHTML =
+      '<div class="chapter-no">' + c.no + '</div>' +
+      '<div class="chapter-title">' + c.title + '</div>' +
+      '<div class="reader-text">' + c.paras.map(p => '<p>' + p + '</p>').join('') + '</div>' +
+      '<div class="reader-foot"><span>' + c.page + '</span><span>' + c.rest + '</span></div>';
+    rBar.style.width = c.pct + '%';
+    rProg.textContent = c.pct + '% · ' + c.page + ' / 320 页';
+    rBody.scrollTop = 0;
+  }
+
+  function turnChapter(dir) {
+    if (rLock) return;
+    const next = rIndex + dir;
+    if (next < 0 || next >= CHAPTERS.length) return;
+    rLock = true;
+
+    rBody.style.transition = 'opacity .18s, transform .18s';
+    rBody.style.opacity = '0';
+    rBody.style.transform = 'translateX(' + (dir > 0 ? -22 : 22) + 'px)';
+
+    setTimeout(() => {
+      rIndex = next;
+      renderChapter(rIndex);
+      rBody.style.transition = 'none';
+      rBody.style.transform = 'translateX(' + (dir > 0 ? 22 : -22) + 'px)';
+      requestAnimationFrame(() => {
+        rBody.style.transition = 'opacity .24s, transform .24s';
+        rBody.style.opacity = '1';
+        rBody.style.transform = 'none';
+        setTimeout(() => { rLock = false; }, 260);
+      });
+    }, 180);
+  }
+
+  document.querySelectorAll('[data-sub="reader"]').forEach(el => {
+    el.addEventListener('click', () => {
+      rBody.style.transition = 'none';
+      rBody.style.opacity = '1';
+      rBody.style.transform = 'none';
+      rIndex = 1;
+      renderChapter(rIndex);
+    });
+  });
+
+  renderChapter(rIndex);
+
+  // 触摸滑动
+  let touchX = 0, touchY = 0;
+  rBody.addEventListener('touchstart', e => {
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+  }, { passive: true });
+  rBody.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchX;
+    const dy = e.changedTouches[0].clientY - touchY;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      turnChapter(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+
+  // 桌面端拖拽
+  let mouseX = null;
+  rBody.addEventListener('mousedown', e => { mouseX = e.clientX; });
+  window.addEventListener('mouseup', e => {
+    if (mouseX === null) return;
+    const dx = e.clientX - mouseX;
+    mouseX = null;
+    if (Math.abs(dx) > 60) turnChapter(dx < 0 ? 1 : -1);
+  });
 </script>
 
 </body>

@@ -1,8 +1,19 @@
 {
   "color": [
-    {
-      "name": "start_window_background",
-      "value": "#FFFFFF"
-    }
+    { "name": "start_window_background", "value": "#F6F2E9" },
+    { "name": "paper", "value": "#F6F2E9" },
+    { "name": "paper_2", "value": "#EFE9DC" },
+    { "name": "paper_3", "value": "#E6DECD" },
+    { "name": "ink", "value": "#1B1917" },
+    { "name": "ink_2", "value": "#4B463F" },
+    { "name": "ink_3", "value": "#8E8779" },
+    { "name": "cinnabar", "value": "#B4432E" },
+    { "name": "cinnabar_soft", "value": "#F3E5E0" },
+    { "name": "sage", "value": "#6F7B68" },
+    { "name": "gold", "value": "#C08B3E" },
+    { "name": "rule", "value": "#DED7C9" },
+    { "name": "rule_soft", "value": "#EAE4D8" },
+    { "name": "dark_card", "value": "#232019" },
+    { "name": "dark_text", "value": "#F3EEE3" }
   ]
 }

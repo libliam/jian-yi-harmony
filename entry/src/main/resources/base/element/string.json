@@ -2,15 +2,15 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "module description"
+      "value": "简忆 · 记下的话、要做的事、在读的书"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "description"
+      "value": "简忆"
     },
     {
       "name": "EntryAbility_label",
-      "value": "label"
+      "value": "简忆"
     }
   ]
 }

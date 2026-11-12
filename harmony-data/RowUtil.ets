@@ -24,3 +24,8 @@ export function numOrNull(rs: relationalStore.ResultSet, col: string): number | 
   const i: number = rs.getColumnIndex(col);
   return rs.isColumnNull(i) ? null : rs.getLong(i);
 }
+
+/** REAL 列（例如 book.percent）必须走 getDouble，用 getLong 会把 0.40 读成 0 */
+export function real(rs: relationalStore.ResultSet, col: string): number {
+  return rs.getDouble(rs.getColumnIndex(col));
+}

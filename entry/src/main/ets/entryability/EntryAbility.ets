@@ -1,12 +1,17 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { initDb } from '../db/JianYiDb';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    // 提前预热数据库连接。Index 里还会 await 一次，initDb 用同一个 Promise 保证只建表一次。
+    initDb(this.context).catch(() => {
+      hilog.error(DOMAIN, 'testTag', '%{public}s', 'Failed to init jianyi.db');
+    });
   }
 
   onDestroy(): void {

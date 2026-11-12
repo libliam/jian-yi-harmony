@@ -9,7 +9,7 @@
 import { relationalStore } from '@kit.ArkData';
 import { db, newId } from './JianYiDb';
 import { BookRow } from './Models';
-import { str, strOrNull, num } from './RowUtil';
+import { str, strOrNull, num, real } from './RowUtil';
 
 const TABLE: string = 'book';
 
@@ -126,7 +126,7 @@ function mapBook(rs: relationalStore.ResultSet): BookRow {
     totalPages: num(rs, 'total_pages'),
     lastChapter: num(rs, 'last_chapter'),
     lastOffset: num(rs, 'last_offset'),
-    percent: num(rs, 'percent'),
+    percent: real(rs, 'percent'),
     addedAt: num(rs, 'added_at'),
     createdAt: num(rs, 'created_at'),
     updatedAt: num(rs, 'updated_at'),

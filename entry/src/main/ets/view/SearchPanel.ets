@@ -1,12 +1,12 @@
 /**
  * 全局搜索 · 路线图第 3 步
  *
- * 一次搜全部：语录 / 剪藏 / 待办 / 待思 / 书架。
+ * 一次搜全部：语录 / 剪藏 / 待办 / 待思 / 书架 / 微光。
  * 聚合在 SearchRepo，这里只负责输入、分组、高亮和点击跳转。
  */
 
 import { searchAll, SEARCH_GROUPS, SearchHit, emptySearchTip } from '../db/SearchRepo';
-import { closeSearch, switchTab, setTodoPane, openSheet } from '../common/Bus';
+import { closeSearch, switchTab, setTodoPane, openSheet, openGrowth } from '../common/Bus';
 import { C, S } from '../common/Theme';
 
 const RECENT: string[] = ['梭罗', '评审', '双链', '瓦尔登湖'];
@@ -25,6 +25,11 @@ export struct SearchPanel {
   }
 
   private pick(hit: SearchHit): void {
+    if (hit.group === '微光') {
+      // 搜索页留在栈里：从结果进回顾页，返回时回到刚才这份搜索结果
+      openGrowth();
+      return;
+    }
     closeSearch();
     switchTab(hit.tab);
     if (hit.pane.length > 0) {
@@ -46,7 +51,7 @@ export struct SearchPanel {
             .fontSize(12)
             .fontColor(C.ink3)
             .margin({ right: 9 })
-          TextInput({ placeholder: '搜索 语录 · 待办 · 想法 · 书', text: this.keyword })
+          TextInput({ placeholder: '搜索 语录 · 待办 · 想法 · 书 · 微光', text: this.keyword })
             .layoutWeight(1)
             .fontSize(13.5)
             .fontColor(C.ink)
@@ -107,7 +112,7 @@ export struct SearchPanel {
             }
             .width('100%')
 
-            Text('一次搜全部：语录、剪藏、待办、待思、书架。\n不用记分类，想到什么词就搜什么词。')
+            Text('一次搜全部：语录、剪藏、待办、待思、书架、微光。\n不用记分类，想到什么词就搜什么词。')
               .fontSize(10.5)
               .lineHeight(21)
               .fontColor(C.ink3)

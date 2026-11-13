@@ -134,6 +134,23 @@ export interface EventRow extends BaseRow {
   source: string;
 }
 
+/**
+ * 微光：随手记下的一点成长。
+ * 除 date / content 外全部可空——录入只要求一句话，维度与数值都是后置推断，
+ * 用户不必为「以后能分析」多填一个字段。派生统计一律现算，不落库。
+ */
+export interface GrowthRow extends BaseRow {
+  /** 'YYYY-MM-DD' */
+  date: string;
+  content: string;
+  /** 成长维度；null 表示未分类，可在回顾页补标 */
+  category: string | null;
+  /** 从正文识别出的数值，如 30；识别不到为 null */
+  amount: number | null;
+  /** 分钟 / 小时 / 页 / 次 / 公里 …… */
+  unit: string | null;
+}
+
 /** 书籍 + 阅读进度（进度直接存在书上，一本书只有一个位置） */
 export interface BookRow extends BaseRow {
   title: string;

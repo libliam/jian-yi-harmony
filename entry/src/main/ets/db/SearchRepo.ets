@@ -9,7 +9,8 @@ import { searchEntries, displayTags } from './EntryRepo';
 import { searchTodos } from './TodoRepo';
 import { searchThoughts } from './ThoughtRepo';
 import { searchBooks } from './BookRepo';
-import { EntryRow, TodoRow, ThoughtRow, BookRow, TodoBucket } from './Models';
+import { searchGrowth } from './GrowthRepo';
+import { EntryRow, TodoRow, ThoughtRow, BookRow, GrowthRow, TodoBucket } from './Models';
 
 /** tab 序号与 Index 的五个主视图一致 */
 export const TAB_TODAY: number = 0;
@@ -18,7 +19,7 @@ export const TAB_TODO: number = 2;
 export const TAB_READER: number = 3;
 export const TAB_PLAN: number = 4;
 
-export const SEARCH_GROUPS: string[] = ['语录', '待办', '想法', '书'];
+export const SEARCH_GROUPS: string[] = ['语录', '待办', '想法', '书', '微光'];
 
 export interface SearchHit {
   id: string;
@@ -40,6 +41,7 @@ export async function searchAll(keyword: string): Promise<SearchHit[]> {
   const todos: TodoRow[] = await searchTodos(q);
   const thoughts: ThoughtRow[] = await searchThoughts(q);
   const books: BookRow[] = await searchBooks(q);
+  const growth: GrowthRow[] = await searchGrowth(q);
 
   const hits: SearchHit[] = [];
 
@@ -87,7 +89,18 @@ export async function searchAll(keyword: string): Promise<SearchHit[]> {
     });
   }
 
-  // 按分组顺序排，保证「语录 → 待办 → 想法 → 书」和原型一致
+  for (const g of growth) {
+    hits.push({
+      id: g.id,
+      group: '微光',
+      title: g.content,
+      sub: g.category ? `${g.date} · ${g.category}` : g.date,
+      tab: TAB_TODAY,
+      pane: ''
+    });
+  }
+
+  // 按分组顺序排，保证「语录 → 待办 → 想法 → 书 → 微光」和原型一致
   const ordered: SearchHit[] = [];
   for (const g of SEARCH_GROUPS) {
     for (const h of hits) {

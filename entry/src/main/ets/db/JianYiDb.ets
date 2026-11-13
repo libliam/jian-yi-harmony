@@ -15,7 +15,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 const STORE_NAME: string = 'jianyi.db';
 
 /** 每次改表结构，版本号 +1，并在 migrate() 里追加一段；禁止直接改建表语句 */
-const DB_VERSION: number = 1;
+const DB_VERSION: number = 2;
 
 /**
  * 建表语句
@@ -134,6 +134,27 @@ const DDL_V1: string[] = [
   )`
 ];
 
+/**
+ * v2：微光（成长点滴）。
+ * DDL_V1 保持原样，老用户从 version 1 升上来时只执行这一段，
+ * 不重建任何已有表，也不碰已记录的数据。
+ */
+const DDL_V2: string[] = [
+  `CREATE TABLE IF NOT EXISTS growth (
+    id          TEXT PRIMARY KEY,
+    date        TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    category    TEXT,
+    amount      REAL,
+    unit        TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_growth_date ON growth(date DESC, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_growth_alive ON growth(deleted_at)`
+];
+
 /** 全局单例：整个应用只开一个 RdbStore，重复打开会锁库 */
 let store: relationalStore.RdbStore | null = null;
 /**
@@ -194,10 +215,19 @@ async function migrate(s: relationalStore.RdbStore): Promise<void> {
     }
   }
 
-  // 将来加字段的写法示例（不要改建表语句）：
-  // if (current < 2) {
-  //   await s.executeSql(`ALTER TABLE todo ADD COLUMN remind_at INTEGER`);
-  // }
+  if (current < 2) {
+    s.beginTransaction();
+    try {
+      for (const sql of DDL_V2) {
+        await s.executeSql(sql);
+      }
+      s.commit();
+    } catch (err) {
+      s.rollBack();
+      const e = err as BusinessError;
+      throw new Error(`数据库迁移到 v2 失败：${e.message}`);
+    }
+  }
 
   s.version = DB_VERSION;
 }

@@ -15,12 +15,25 @@ import { addHabit, checkIn } from './HabitRepo';
 import { addMood } from './MoodRepo';
 import { addBook, updateProgress } from './BookRepo';
 import { addEvent } from './EventRepo';
+import { addGrowth } from './GrowthRepo';
 import { bumpRevision } from '../common/Bus';
 import { EntryType, TodoBucket, Priority, HabitPeriod } from './Models';
 
 const SEED_ENABLED: boolean = true;
 const PREF_NAME: string = 'jianyi_meta';
 const PREF_KEY: string = 'demo_seeded_v1';
+/** 微光是后加的模块，用独立标记：老用户只补这一部分，不会重复灌入语录 / 待办 */
+const GROWTH_PREF_KEY: string = 'growth_seeded_v1';
+
+interface GrowthSample {
+  offset: number;
+  hour: number;
+  minute: number;
+  text: string;
+  category: string;
+  amount: number | null;
+  unit: string | null;
+}
 
 function day(offset: number): string {
   const d: Date = new Date();
@@ -34,6 +47,51 @@ function atHour(hour: number, minute: number): number {
   const d: Date = new Date();
   d.setHours(hour, minute, 0, 0);
   return d.getTime();
+}
+
+function atDayHour(offset: number, hour: number, minute: number): number {
+  const d: Date = new Date();
+  d.setDate(d.getDate() + offset);
+  d.setHours(hour, minute, 0, 0);
+  return d.getTime();
+}
+
+/** 微光示例：铺满近一个月，让回顾页一打开就有分布、热力与「那时的我」可看 */
+export async function seedGrowthIfEmpty(context: common.Context): Promise<void> {
+  if (!SEED_ENABLED) {
+    return;
+  }
+
+  const opts: preferences.Options = { name: PREF_NAME };
+  const pref: preferences.Preferences = await preferences.getPreferences(context, opts);
+  if (pref.getSync(GROWTH_PREF_KEY, false) === true) {
+    return;
+  }
+
+  const samples: GrowthSample[] = [
+    { offset: -31, hour: 21, minute: 10, text: '第一次试着把周报提前一天写完', category: '尝试', amount: null, unit: null },
+    { offset: -24, hour: 12, minute: 40, text: '中午没刷短视频，去散步了 20 分钟', category: '自律', amount: 20, unit: '分钟' },
+    { offset: -19, hour: 19, minute: 30, text: '健身 35 分钟，比上次多做了两组', category: '身体', amount: 35, unit: '分钟' },
+    { offset: -14, hour: 22, minute: 5, text: '读完《瓦尔登湖》最后一章，还做了笔记', category: '学习', amount: null, unit: null },
+    { offset: -11, hour: 15, minute: 20, text: '忍住没在会上打断别人，听完了', category: '心性', amount: null, unit: null },
+    { offset: -8, hour: 20, minute: 0, text: '给妈妈打了个电话，聊了 30 分钟', category: '关系', amount: 30, unit: '分钟' },
+    { offset: -6, hour: 23, minute: 5, text: '早睡了，睡前没碰手机', category: '身体', amount: null, unit: null },
+    { offset: -4, hour: 17, minute: 45, text: '把拖了三天的评审结论补完了', category: '自律', amount: null, unit: null },
+    { offset: -3, hour: 7, minute: 20, text: '跑步 3 公里，比上周轻快一点', category: '身体', amount: 3, unit: '公里' },
+    { offset: -2, hour: 14, minute: 10, text: '第一次主动在会上提了个想法', category: '尝试', amount: null, unit: null },
+    { offset: -1, hour: 13, minute: 5, text: '中午没有浪费太多时间刷短视频', category: '自律', amount: null, unit: null },
+    { offset: 0, hour: 8, minute: 15, text: '把今天的待办提前清空了', category: '自律', amount: null, unit: null },
+    { offset: 0, hour: 18, minute: 40, text: '健身 30 分钟，顺手记下来了', category: '身体', amount: 30, unit: '分钟' }
+  ];
+
+  for (const s of samples) {
+    await addGrowth(s.text, day(s.offset), s.category, s.amount, s.unit,
+      atDayHour(s.offset, s.hour, s.minute));
+  }
+
+  await pref.put(GROWTH_PREF_KEY, true);
+  await pref.flush();
+  bumpRevision();
 }
 
 export async function seedDemoDataIfEmpty(context: common.Context): Promise<void> {

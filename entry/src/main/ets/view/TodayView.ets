@@ -21,6 +21,7 @@ import {
   lastSevenDays, formatTime, dueLabel, isOverdue
 } from '../common/DateUtil';
 import { SearchButton } from './Parts';
+import { GrowthCard } from './GrowthCard';
 
 interface HabitBrief {
   id: string;
@@ -199,6 +200,7 @@ export struct TodayView {
         .width('100%')
         .margin({ top: 22 })
 
+        GrowthCard()
         this.todoBriefCard()
         this.habitCard()
         this.moodCard()

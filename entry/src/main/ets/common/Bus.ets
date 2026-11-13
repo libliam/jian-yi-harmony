@@ -91,6 +91,15 @@ export function closeSearch(): void {
   popPage();
 }
 
+/** 微光回顾也是独立页面，系统返回键逐层 pop 回主页 / 搜索页 */
+export function openGrowth(): void {
+  pushPage('pages/GrowthPage');
+}
+
+export function closeGrowth(): void {
+  popPage();
+}
+
 /** sheet 类型：more / quote / task / think / mood / habit / event；空串表示关闭 */
 export function openSheet(type: string): void {
   AppStorage.setOrCreate<string>(SHEET_KEY, type);

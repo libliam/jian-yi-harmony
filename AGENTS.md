@@ -8,7 +8,7 @@
 
 ## 0. 一句话
 
-简忆是**要装到手机上的 HarmonyOS NEXT 原生应用**（ArkTS + ArkUI，Stage 模型），本地优先的个人心智工具：记下值得记住的句子、安排今天要做的事、读完手里的书。
+简忆是**要装到手机上的 HarmonyOS NEXT 原生应用**（ArkTS + ArkUI，Stage 模型），本地优先的个人心智工具：记下值得记住的句子、安排今天要做的事、读完手里的书、攒下一点一滴的成长。
 
 ## 1. 产品定位（最高优先级 · 用户 2026-11-12 明确）
 
@@ -29,13 +29,14 @@
 | 平台 | HarmonyOS NEXT，`compatibleSdkVersion 6.1.1(24)`，`targetSdkVersion 26.0.1` |
 | 编译 | DevEco Studio 5.0+；**本机没有 SDK / hvigorw，Agent 无法真编译** |
 | 入口 Ability | `entry/src/main/ets/entryability/EntryAbility.ets` → `loadContent('pages/Index')` |
-| 页面注册 | `entry/src/main/resources/base/profile/main_pages.json`（3 个页面，Index 第一为启动页） |
+| 页面注册 | `entry/src/main/resources/base/profile/main_pages.json`（4 个页面，Index 第一为启动页） |
 | 主页面 | `entry/src/main/ets/pages/Index.ets`（页面栈底） |
-| 独立页面 | `pages/SearchPage.ets`（搜索）、`pages/SubPage.ets`（习惯/心情/摘录/阅读） |
+| 独立页面 | `pages/SearchPage.ets`（搜索）、`pages/SubPage.ets`（习惯/心情/摘录/阅读）、`pages/GrowthPage.ets`（微光回顾） |
 | 五个主视图 | `view/TodayView / QuoteView / TodoView / ReaderView / PlanView` |
-| 全局弹层 | `view/QuickSheet`（录入），在 Index 与 SubPage 各渲染一份，靠 `uiSheet` 控制 |
+| 全局弹层 | `view/QuickSheet`（录入），在 Index / SubPage / GrowthPage 各渲染一份，靠 `uiSheet` 控制 |
 | 状态总线 | `common/Bus.ets`，AppStorage：`dbRevision` 与 `uiTab/uiTodoPane/uiSheet/uiSub/uiQuoteId/uiPlanDate`；导航动作走 `UIContext.getRouter()` |
-| 数据层 | `entry/src/main/ets/db/`，SQLite `databases/jianyi.db`，7 张表 + 9 个仓库 + `Seed.ets` 示例数据 |
+| 数据层 | `entry/src/main/ets/db/`，SQLite `databases/jianyi.db`，DB v2：9 张表 + 9 个仓库 + `Seed.ets` 示例数据 |
+| 微光模块 | `db/GrowthRepo.ets` + `common/GrowthTag.ets`（本地推断）+ `common/GrowthAnalysis.ets`（现算统计）+ `view/GrowthCard.ets`（一步录入）+ `view/GrowthView.ets`（回顾），设计取舍见 3.6 |
 | 通知提醒 | `common/Reminder.ets` + `module.json5` 的 `PUBLISH_AGENT_REMINDER` 权限；开关与 reminderId 存 Preferences `jianyi_meta` |
 | 应用图标 | `design/generate_icon.py` 生成；AppScope 与 entry **两套**分层资源 + `startIcon.png`，见 3.5 |
 | 视觉常量 | `common/Theme.ets`（纸墨色板），页面与图标都禁止散落十六进制色值 |
@@ -123,6 +124,15 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 
 朱印方案的「简」字用 `STZHONGS.TTF`（华文中宋）：宋体横细竖粗最接近白文印，且比普通宋体耐缩小；脚本内置多平台字体 fallback。**换机器重新生成时若命中不同字体，字形会变**，`design/icon-full.png` 必须一起更新；简牍 / 墨页是纯几何图形，不受字体影响。图标资源是 PNG，不参与 ArkTS 编译，也不受「本机无 SDK」限制。
 
+### 3.6 微光模块：结构后置，别把成本转嫁给录入（2026-11-13）
+
+- 「多小的事都算」与「以后能分析」天然冲突。解法：**录入只收一句话**，维度与数值由 `common/GrowthTag.ets` 本地推断，用户不选也能存（未分类落 NULL），回顾页还能补标；统计全部由 `common/GrowthAnalysis.ets` 现算，不落库。
+- 不做评分、目标、断签提醒、排行榜，也不写「你进步了 X%」这类评判。App 只把证据摆整齐，判断留给本人。
+- 数据库从 v1 升到 v2：`JianYiDb.ets` 追加 `DDL_V2` 并在 `migrate()` 里按 `current < 2` 执行，**不要改建表语句**；REAL 可空列必须 `getDouble`（已加 `RowUtil.realOrNull`），用 `getLong` 会把小数读成 0。
+- 示例数据用**独立标记** `growth_seeded_v1`：老用户升级只补微光，不会因为动 `demo_seeded_v1` 而重复灌入语录 / 待办。
+- 回顾页是第 4 个 `@Entry` 页面；搜索结果点「微光」时不 pop 搜索页、直接 push 回顾页，返回时回到刚才的搜索结果，符合系统页面栈语义。
+- 二期（未做）：桌面服务卡片 / 长按图标快捷方式实现真正的「随时随地」、通知点击直达录入、数值累计展示。这些都是**系统能力**，别用自绘按钮糊弄过去。
+
 ## 4. 系统能力清单（当前状态）
 
 | 能力 | 状态 | 说明 |
@@ -137,8 +147,10 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 桌面图标 / 启动窗口 | ✅ 已做，真机已确认 | 分层图标两层 1024² + `startIcon` 152²，纸墨风三方案可切换；11-13 用户确认桌面图标已变成简牍方案，见 3.5 |
 | 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
+| 微光 · 随手记与回顾 | ✅ 已实现，待真机验证 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；设计取舍见 3.6 |
+| 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
 
-**下一步优先级**：P0 迁移 `Navigation` + `NavPathStack`（把 router 页面栈换成官方推荐的组件导航，顺带处理弹层的路由拦截与分栏适配）；P1 状态栏与安全区、把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）；P2 Reader Kit 正文、备份导出。
+**下一步优先级**：P1 状态栏与安全区、把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）、微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 
 ## 5. 给 Agent 的工作准则

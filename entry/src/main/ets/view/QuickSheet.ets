@@ -11,7 +11,12 @@ import { addThought } from '../db/ThoughtRepo';
 import { addMood } from '../db/MoodRepo';
 import { addHabit } from '../db/HabitRepo';
 import { addEvent } from '../db/EventRepo';
+import { addGrowth } from '../db/GrowthRepo';
 import { EntryType, TodoBucket, Priority, HabitPeriod } from '../db/Models';
+import {
+  GROWTH_CATEGORIES, GROWTH_UNCATEGORIZED, guessCategory, parseAmount,
+  categoryForDb, GrowthAmount
+} from '../common/GrowthTag';
 import { bumpRevision, closeSheet, openSheet } from '../common/Bus';
 import { C, S, SERIF, MOOD_LABELS } from '../common/Theme';
 import { today, atToday, atDay } from '../common/DateUtil';
@@ -40,6 +45,9 @@ export struct QuickSheet {
   @State period: string = '每天';
   @State time: string = '09:30';
   @State tip: string = '';
+  @State growthTag: string = GROWTH_UNCATEGORIZED;
+  @State growthTagTouched: boolean = false;
+  @State amountHint: string = '';
 
   onSheetChange(): void {
     if (this.sheetType.length > 0) {
@@ -59,6 +67,9 @@ export struct QuickSheet {
     this.period = '每天';
     this.time = '09:30';
     this.tip = '';
+    this.growthTag = GROWTH_UNCATEGORIZED;
+    this.growthTagTouched = false;
+    this.amountHint = '';
   }
 
   private pick(kind: string, value: string): void {
@@ -76,6 +87,9 @@ export struct QuickSheet {
       this.period = value;
     } else if (kind === 'time') {
       this.time = value;
+    } else if (kind === 'category') {
+      this.growthTag = value;
+      this.growthTagTouched = true;
     }
   }
 
@@ -121,6 +135,11 @@ export struct QuickSheet {
       const date: string = this.planDate.length > 0 ? this.planDate : today();
       await addEvent(text, date,
         atDay(date, Number(parts[0]), Number(parts[1])), null, 'local');
+    } else if (this.sheetType === 'growth') {
+      const amount: GrowthAmount | null = parseAmount(text);
+      await addGrowth(text, today(), categoryForDb(this.growthTag),
+        amount === null ? null : amount.amount,
+        amount === null ? null : amount.unit);
     }
 
     bumpRevision();
@@ -185,6 +204,12 @@ export struct QuickSheet {
       }
       .width('100%')
       .margin({ top: 10 })
+      Row() {
+        this.quickItem('一点微光', '今天的小进步', 'growth')
+        this.quickItem('新建习惯', '每天 / 每周', 'habit')
+      }
+      .width('100%')
+      .margin({ top: 10 })
     }
     .width('100%')
   }
@@ -224,6 +249,11 @@ export struct QuickSheet {
       .fontColor(C.ink3)
       .margin({ top: 6, bottom: 18 })
 
+    if (this.sheetType === 'growth') {
+      this.fieldLabel('大概是（猜的，可不选）')
+      this.miniChips(GROWTH_CATEGORIES, this.growthTag, 'category')
+    }
+
     if (this.sheetType === 'quote') {
       this.fieldLabel('类型')
       this.miniChips(QUOTE_TYPES, this.entryType, 'type')
@@ -254,9 +284,12 @@ export struct QuickSheet {
     }
 
     this.fieldLabel(this.sheetType === 'habit' ? '习惯名称' :
-      this.sheetType === 'event' ? '安排什么' : this.sheetType === 'task' ? '要做的事' : '内容')
+      this.sheetType === 'event' ? '安排什么' :
+        this.sheetType === 'task' ? '要做的事' :
+          this.sheetType === 'growth' ? '哪一点比昨天好' : '内容')
 
-    if (this.sheetType === 'quote' || this.sheetType === 'think' || this.sheetType === 'mood') {
+    if (this.sheetType === 'quote' || this.sheetType === 'think' ||
+      this.sheetType === 'mood' || this.sheetType === 'growth') {
       TextArea({ placeholder: this.placeholderOf(), text: this.content })
         .width('100%')
         .height(76)
@@ -267,6 +300,17 @@ export struct QuickSheet {
         .onChange((value: string) => {
           this.content = value;
           this.tip = '';
+          if (this.sheetType === 'growth') {
+            if (!this.growthTagTouched) {
+              this.growthTag = guessCategory(value);
+            }
+            const amount: GrowthAmount | null = parseAmount(value);
+            if (amount === null) {
+              this.amountHint = '';
+            } else {
+              this.amountHint = `识别到 ${amount.amount}${amount.unit}`;
+            }
+          }
         })
     } else {
       TextInput({ placeholder: this.placeholderOf(), text: this.content })
@@ -319,6 +363,14 @@ export struct QuickSheet {
         .margin({ top: 12 })
     }
 
+    if (this.sheetType === 'growth' && this.amountHint.length > 0) {
+      Text(this.amountHint)
+        .fontSize(10.5)
+        .fontColor(C.ink3)
+        .margin({ top: 10 })
+        .alignSelf(ItemAlign.Start)
+    }
+
     Row() {
       Button('取消')
         .layoutWeight(1)
@@ -333,7 +385,8 @@ export struct QuickSheet {
       Button(this.sheetType === 'task' ? '加上' :
         this.sheetType === 'think' ? '存下' :
           this.sheetType === 'mood' ? '记下' :
-            this.sheetType === 'habit' ? '创建' : '保存')
+            this.sheetType === 'growth' ? '记下' :
+              this.sheetType === 'habit' ? '创建' : '保存')
         .layoutWeight(1)
         .fontSize(12)
         .fontColor(C.paper)
@@ -391,6 +444,9 @@ export struct QuickSheet {
     if (this.sheetType === 'habit') {
       return '新建习惯';
     }
+    if (this.sheetType === 'growth') {
+      return '记一点微光';
+    }
     return '加一段安排';
   }
 
@@ -410,6 +466,9 @@ export struct QuickSheet {
     if (this.sheetType === 'habit') {
       return '从小处开始，先坚持七天';
     }
+    if (this.sheetType === 'growth') {
+      return '不管多小的事都算，不选分类也能存';
+    }
     return '把这段时间留给它';
   }
 
@@ -428,6 +487,9 @@ export struct QuickSheet {
     }
     if (this.sheetType === 'habit') {
       return '比如：睡前读十页书';
+    }
+    if (this.sheetType === 'growth') {
+      return '比如：中午没刷短视频，去走了二十分钟';
     }
     return '比如：产品评审会';
   }

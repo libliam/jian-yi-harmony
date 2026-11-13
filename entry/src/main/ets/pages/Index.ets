@@ -12,7 +12,7 @@
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { initDb } from '../db/JianYiDb';
-import { seedDemoDataIfEmpty } from '../db/Seed';
+import { seedDemoDataIfEmpty, seedGrowthIfEmpty } from '../db/Seed';
 import {
   ensureUiState, attachUiContext, bumpRevision,
   switchTab, openSheet, closeSheet
@@ -57,6 +57,12 @@ struct Index {
         await seedDemoDataIfEmpty(context);
       } catch (seedErr) {
         // 示例数据可有可无，不阻断应用
+      }
+      // 微光用独立标记，老用户升级后也能补上示例，不会重复灌入其它表
+      try {
+        await seedGrowthIfEmpty(context);
+      } catch (growthErr) {
+        // 同上
       }
       this.ready = true;
     } catch (err) {

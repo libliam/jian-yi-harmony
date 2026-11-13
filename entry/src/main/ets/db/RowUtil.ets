@@ -29,3 +29,9 @@ export function numOrNull(rs: relationalStore.ResultSet, col: string): number | 
 export function real(rs: relationalStore.ResultSet, col: string): number {
   return rs.getDouble(rs.getColumnIndex(col));
 }
+
+/** 可空的 REAL 列（例如 growth.amount）：先判 NULL，再 getDouble */
+export function realOrNull(rs: relationalStore.ResultSet, col: string): number | null {
+  const i: number = rs.getColumnIndex(col);
+  return rs.isColumnNull(i) ? null : rs.getDouble(i);
+}

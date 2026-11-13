@@ -141,3 +141,4 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 6. 原型与代码不一致时以 `jianyi-prototype.html` 为准并同步代码（project_rules 6），但**原型只是设计参考，不是运行时**。
 7. 完成实质工作后把结论追加到 `.workbuddy/memory/YYYY-MM-DD.md`；用户表达的长期偏好另写 `.workbuddy/memory/MEMORY.md`。**不要删除 `.workbuddy/` 目录**。
 8. 提交信息沿用 `feat: / fix: / refactor: / docs:`，一次提交只做一件事。
+9. **提交后直接推送远程**（用户 2026-11-13 明确）：commit 完紧接着 `git push origin main`，不要只留本地提交等用户来问。远端 `https://github.com/libliam/jian-yi-harmony.git`，分支 `main`。推送前确认 `.sign` / `local.properties` / build 产物已被 `.gitignore` 排除；若因网络或凭据失败，如实报告，不要擅自换协议或 force push。

@@ -14,3 +14,4 @@
 - 用户会在 DevEco Studio 里手动改代码（已发生过一次），**改文件前必须重新读取磁盘内容**，不要凭记忆 Edit。
 - 长期约定以 `.trae/rules/project_rules.md` 为准；Agent 速查、系统能力清单与踩坑记录在项目根 `AGENTS.md`。
 - 应用名统一「简忆」；UUID 主键、软删除、派生数据现算；页面不出现 SQL；色彩只从 `common/Theme.ets` 取。
+- **提交后直接推送远程**（用户 2026-11-13 起）：commit 完立即 `git push origin main`（`https://github.com/libliam/jian-yi-harmony.git`），不要只做本地 commit 等用户追问；推送前先确认没有签名配置 / 本地路径等敏感文件被带进去。

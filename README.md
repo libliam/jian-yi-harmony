@@ -9,8 +9,8 @@
 | 交互原型 | ✅ 完成 | 单文件 HTML，仅作设计参考，不是运行时 UI |
 | 数据层 | ✅ 完成 | 7 张表 + 9 个仓库，已接入 `entry` 编译路径 |
 | ArkUI 页面 | ✅ 完成 | 五个主视图 + 全局搜索 + 录入弹层 + 三个二级页 |
-| 系统返回键 | ✅ 完成 | 搜索/二级页由系统页面栈逐层 pop；`Index.onBackPress` 管弹层、回今日、二次退出 Toast |
-| 原生页面栈 | ✅ 完成 | `Index` / `SearchPage` / `SubPage` 三个 `@Entry` 页面，`UIContext.getRouter()` push/back |
+| 系统返回键 | ✅ 完成，真机已验证 | 搜索/二级页由系统页面栈逐层 pop；`Index.onBackPress` 管弹层、回今日、二次退出 Toast；11-13 手机确认逐层返回与退出提示 |
+| 原生页面栈 | ✅ 完成，真机已验证 | `Index` / `SearchPage` / `SubPage` 三个 `@Entry` 页面，`UIContext.getRouter()` push/back |
 | 迁移 Navigation | ⬜ 待做 | router 体系官方已不推荐，后续换 `NavPathStack` 以支持分栏与路由拦截 |
 | 通知提醒 | 🟡 已实现，待真机验证 | 每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；真机前需 AGC 开通能力，见 `AGENTS.md` 3.4 |
 | 应用图标 | ✅ 完成 | 纸墨风分层图标（简牍方案）+ 启动窗口图标，三方案可用脚本切换，见「应用图标」一节 |

@@ -68,6 +68,8 @@
 1. 2026-11-12：`Index` 加 `onBackPress(): boolean` 逐层消费返回（`录入弹层 → 搜索 → 二级页 → 回今日 → 二次退出`）+ 系统 Toast 提示，先让返回键可用。
 2. 2026-11-13：把搜索与二级页拆成独立 `@Entry` 页面并注册，导航改为 push / back，由**系统页面栈**逐层 pop；`Index.onBackPress` 只负责录入弹层、回今日、二次退出。单页覆盖层正式退役。
 
+**真机反馈（2026-11-13 晚）**：用户在手机上确认「返回分别返回到不同的地方，最终退出的时候也有提示」—— 逐层回退与二次退出 Toast 的行为目标已达成，「一按返回就回桌面」的问题解决。本次反馈只覆盖导航与返回；通知提醒、AGC 代理提醒、启动窗口观感未被提及，仍按 3.4 / 第 4 节保持「待真机验证」，不要顺手把整批改动标成已验证。
+
 ### 3.3 其他已验证的排错点
 
 - `book.percent` 是 `REAL` 列，`RowUtil` 要走 `getDouble`；用 `getLong` 会把 0.40 读成 0。
@@ -117,8 +119,8 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| 系统返回键 / 侧滑返回 | ✅ 已接 | 搜索页 / 二级页由系统页面栈自动 pop；`Index.onBackPress` 管录入弹层、回今日、二次退出 Toast |
-| 真实页面栈与系统转场 | ✅ 已做（router） | 3 个 `@Entry` 页面 + `main_pages.json`；`UIContext.getRouter()` push / back |
+| 系统返回键 / 侧滑返回 | ✅ 已接，行为已真机确认 | 搜索页 / 二级页由系统页面栈自动 pop；`Index.onBackPress` 管录入弹层、回今日、二次退出 Toast；11-13 真机确认逐层返回与退出提示 |
+| 真实页面栈与系统转场 | ✅ 已做并真机确认（router） | 3 个 `@Entry` 页面 + `main_pages.json`；`UIContext.getRouter()` push / back |
 | 前后台 / 页面生命周期 | 🟡 部分 | `EntryAbility` 有 onForeground/onBackground、onCreate 预热 DB；三个页面 `onPageShow` 挂 UIContext，Index 回来刷新数据 |
 | 本地持久化 | ✅ | RelationalStore + Preferences，断网可用 |
 | 迁移 Navigation / NavPathStack | ⬜ 待做 | router 体系官方已不推荐；`Navigation` 支持分栏、路由拦截、引用传参 |
@@ -129,7 +131,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
 
 **下一步优先级**：P0 迁移 `Navigation` + `NavPathStack`（把 router 页面栈换成官方推荐的组件导航，顺带处理弹层的路由拦截与分栏适配）；P1 状态栏与安全区、把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）；P2 Reader Kit 正文、备份导出。
-（11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案先落地，行为已达标，剩下是 API 现代化；按 project_rules 7「一次提交只做一件事」留作单独一轮。）
+（11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 
 ## 5. 给 Agent 的工作准则
 

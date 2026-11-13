@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "简忆"
+    },
+    {
+      "name": "reminder_permission_reason",
+      "value": "用于在你设定的时间提醒你回顾今天、记录待办与习惯"
     }
   ]
 }

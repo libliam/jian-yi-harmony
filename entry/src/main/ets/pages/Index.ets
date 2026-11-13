@@ -1,11 +1,12 @@
 /**
- * 简忆 · 主容器
+ * 简忆 · 主页面（页面栈底）
  *
  * 五个主视图用条件渲染切换（不用 Tabs 自带 bar），底部标签栏自绘，
- * 这样才能和原型那套纸墨风格对上。所有导航状态放 AppStorage，见 common/Bus.ets。
+ * 这样才能和原型那套纸墨风格对上。tab 与录入弹层状态放 AppStorage，见 common/Bus.ets。
  *
- * 注意：这里的单页 + 覆盖层是过渡实现。系统返回键由 onBackPress 逐层接管，
- * 终态应换成 Navigation / router 的真实页面栈，见 AGENTS.md 第 4 节。
+ * 搜索与二级页已经是独立的 @Entry 页面，由 router 压入系统页面栈；
+ * 系统返回键 / 侧滑返回会逐层 pop 回这里，最后一层由 onBackPress 做二次退出确认。
+ * 这里只保留一个全局录入弹层 QuickSheet。
  */
 
 import { common } from '@kit.AbilityKit';
@@ -13,8 +14,8 @@ import { promptAction } from '@kit.ArkUI';
 import { initDb } from '../db/JianYiDb';
 import { seedDemoDataIfEmpty } from '../db/Seed';
 import {
-  ensureUiState, bumpRevision, switchTab, openSheet,
-  closeSheet, closeSearch, closeSub
+  ensureUiState, attachUiContext, bumpRevision,
+  switchTab, openSheet, closeSheet
 } from '../common/Bus';
 import { C, S, SERIF } from '../common/Theme';
 import { TodayView } from '../view/TodayView';
@@ -22,9 +23,7 @@ import { QuoteView } from '../view/QuoteView';
 import { TodoView } from '../view/TodoView';
 import { ReaderView } from '../view/ReaderView';
 import { PlanView } from '../view/PlanView';
-import { SearchPanel } from '../view/SearchPanel';
 import { QuickSheet } from '../view/QuickSheet';
-import { SubPages } from '../view/SubPages';
 
 interface TabItem {
   mark: string;
@@ -43,9 +42,7 @@ const TABS: TabItem[] = [
 @Component
 struct Index {
   @StorageLink('uiTab') currentTab: number = 0;
-  @StorageLink('uiSearch') showSearch: boolean = false;
   @StorageLink('uiSheet') sheetType: string = '';
-  @StorageLink('uiSub') subPage: string = '';
   @State ready: boolean = false;
   @State error: string = '';
   private lastBackAt: number = 0;
@@ -67,29 +64,26 @@ struct Index {
     }
   }
 
-  /** 从后台 / 桌面回到前台时重拉一次数据，各视图用 @Watch('dbRevision') 刷新 */
+  /**
+   * 页面显示时挂载 UIContext 给导航总线（页面栈入口，见 common/Bus.ets），
+   * 并从后台 / 桌面回到前台时重拉一次数据，各视图用 @Watch('dbRevision') 刷新。
+   */
   onPageShow(): void {
+    attachUiContext(this.getUIContext());
     if (this.ready) {
       bumpRevision();
     }
   }
 
   /**
-   * 系统返回键与侧滑返回。
-   * 返回 true = 自己消费掉这次返回；返回 false = 交给系统，应用退到后台。
-   * 顺序按用户可见的层级从上往下：录入弹层 → 搜索 → 二级页 → 回今日 → 二次确认退出。
+   * 主页面这一层的系统返回键与侧滑返回。
+   * 更上层的搜索页 / 二级页由 router 页面栈自动 pop，不会走到这里。
+   * 剩下按用户可见层级处理：录入弹层 → 回今日 → 二次确认退出。
+   * 返回 true = 自己消费；返回 false = 交给系统，应用退到后台。
    */
   onBackPress(): boolean {
     if (this.sheetType.length > 0) {
       closeSheet();
-      return true;
-    }
-    if (this.showSearch) {
-      closeSearch();
-      return true;
-    }
-    if (this.subPage.length > 0) {
-      closeSub();
       return true;
     }
     if (this.currentTab !== 0) {
@@ -143,8 +137,8 @@ struct Index {
       .height('100%')
       .backgroundColor(C.paper)
 
-      // 全局悬浮：快速记录。搜索/弹层/二级页打开时让位
-      if (this.ready && !this.showSearch && this.sheetType.length === 0 && this.subPage.length === 0) {
+      // 全局悬浮：快速记录。弹层打开时让位；搜索/二级页是独立页面，不在这一层
+      if (this.ready && this.sheetType.length === 0) {
         Button() {
           Text('＋')
             .fontSize(24)
@@ -161,12 +155,6 @@ struct Index {
         .onClick(() => openSheet('more'))
       }
 
-      if (this.showSearch) {
-        SearchPanel()
-      }
-      if (this.subPage.length > 0) {
-        SubPages()
-      }
       if (this.sheetType.length > 0) {
         QuickSheet()
       }

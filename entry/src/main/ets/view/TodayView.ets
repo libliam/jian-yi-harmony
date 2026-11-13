@@ -5,12 +5,16 @@
  * 今日心情、周心情柱、今日安排，全部来自各个仓库，没有一份硬编码。
  */
 
+import { common } from '@kit.AbilityKit';
 import { TodoRow, HabitRow, MoodRow, EventRow, TodoBucket } from '../db/Models';
 import { todayBrief, countTodos, TodoStat } from '../db/TodoRepo';
 import { listHabits, listDoneDates, habitStreak } from '../db/HabitRepo';
 import { latestMood, listMoods, addMood } from '../db/MoodRepo';
 import { listEventsByDate } from '../db/EventRepo';
 import { bumpRevision, switchTab, openSub, openSheet } from '../common/Bus';
+import {
+  isReviewEnabled, enableReview, disableReview, REVIEW_HOUR, REVIEW_MINUTE
+} from '../common/Reminder';
 import { C, S, SERIF, MOOD_LABELS, priorityColor } from '../common/Theme';
 import {
   DayCell, today, todayBig, monthLabel, weekdayLabel, yearLabel,
@@ -35,9 +39,16 @@ export struct TodayView {
   @State moodLevel: number = 0;
   @State weekMoods: number[] = [0, 0, 0, 0, 0, 0, 0];
   @State events: EventRow[] = [];
+  @State reviewOn: boolean = false;
+  @State reviewHint: string = '';
 
   async aboutToAppear(): Promise<void> {
     await this.load();
+    try {
+      this.reviewOn = await isReviewEnabled(getContext(this) as common.Context);
+    } catch (err) {
+      this.reviewOn = false;
+    }
   }
 
   onRev(): void {
@@ -93,6 +104,20 @@ export struct TodayView {
     await addMood(today(), level, null, null);
     bumpRevision();
     await this.load();
+  }
+
+  /** 开关每晚回顾提醒：权限被拒或代理提醒能力没开通时给出文字引导 */
+  private async setReview(on: boolean): Promise<void> {
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    if (on) {
+      const ok: boolean = await enableReview(context);
+      this.reviewOn = ok;
+      this.reviewHint = ok ? '' : '没能开启：请允许通知，并确认已开通代理提醒能力';
+    } else {
+      await disableReview(context);
+      this.reviewOn = false;
+      this.reviewHint = '';
+    }
   }
 
   private greeting(): string {
@@ -177,6 +202,7 @@ export struct TodayView {
         this.todoBriefCard()
         this.habitCard()
         this.moodCard()
+        this.reminderCard()
 
         // 今日安排
         Row() {
@@ -318,6 +344,49 @@ export struct TodayView {
     .border({ width: 1, color: C.rule })
     .backgroundColor(C.paper2)
     .onClick(() => switchTab(2))
+  }
+
+  @Builder
+  reminderCard() {
+    Column() {
+      Row() {
+        Column() {
+          Text('每晚回顾提醒')
+            .fontSize(12)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(C.ink2)
+            .letterSpacing(2)
+          Text(`每天 ${REVIEW_HOUR}:${REVIEW_MINUTE} 提醒你记一句、收个尾`)
+            .fontSize(11)
+            .fontColor(C.ink3)
+            .margin({ top: 6 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Toggle({ type: ToggleType.Switch, isOn: this.reviewOn })
+          .selectedColor(C.cinnabar)
+          .onChange((on: boolean) => {
+            this.setReview(on).catch(() => {
+              this.reviewHint = '提醒设置没能保存，稍后再试';
+            });
+          })
+      }
+      .width('100%')
+
+      if (this.reviewHint.length > 0) {
+        Text(this.reviewHint)
+          .fontSize(10.5)
+          .fontColor(C.cinnabar)
+          .margin({ top: 10 })
+      }
+    }
+    .width('100%')
+    .margin({ top: 18 })
+    .padding({ left: 16, right: 16, top: 14, bottom: 14 })
+    .borderRadius(16)
+    .border({ width: 1, color: C.rule })
+    .backgroundColor(C.paper2)
   }
 
   @Builder

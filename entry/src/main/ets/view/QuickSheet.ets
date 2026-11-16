@@ -423,7 +423,8 @@ export struct QuickSheet {
           .backgroundColor(current === opt ? C.ink : C.paper)
           .margin({ right: 7, bottom: 7 })
           .onClick(() => this.pick(kind, opt))
-      }, (opt: string) => kind + opt)
+      // 选中态 current 必须进 key，否则 ForEach 复用旧组件、高亮永远不变
+      }, (opt: string) => `${kind}|${opt}|${current}`)
     }
     .width('100%')
   }

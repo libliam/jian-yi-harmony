@@ -39,6 +39,12 @@ export struct GrowthView {
   @State groups: GrowthDayGroup[] = [];
   @State heatRows: number[][] = [];
   @State editingId: string = '';
+  /**
+   * 列表刷新版本号。ForEach 只按 key 判断能否复用组件：key 不变就复用旧组件、
+   * 不重跑 itemBuilder。因此「改了维度」和「展开补标面板」都必须让 key 跟着变，
+   * 否则数据写进库了、屏幕还是旧值。见 AGENTS.md 3.7。
+   */
+  @State listVersion: number = 0;
   @State hasThen: boolean = false;
   @State thenContent: string = '';
   @State thenDate: string = '';
@@ -102,6 +108,8 @@ export struct GrowthView {
     this.summary = sum;
     this.groups = groups;
     this.heatRows = heat;
+    // 数据换了一批，让下面所有 ForEach 的 key 一起失效，强制按新数据重建行
+    this.listVersion = this.listVersion + 1;
   }
 
   private async retag(id: string, name: string): Promise<void> {
@@ -223,7 +231,7 @@ export struct GrowthView {
             }
             .width('100%')
             .margin({ bottom: 9 })
-          }, (item: CategoryCount) => item.name)
+          }, (item: CategoryCount) => `${item.name}|${item.count}|${this.listVersion}`)
         }
         .width('100%')
         .padding(16)
@@ -265,11 +273,12 @@ export struct GrowthView {
                   .backgroundColor(count > 0 ? C.cinnabar : C.ruleSoft)
                   .opacity(count > 2 ? 1 : count > 0 ? 0.55 : 1)
                   .margin({ right: 6 })
-              }, (count: number, colIndex: number) => `${rowIndex}-${colIndex}`)
+              }, (count: number, colIndex: number) =>
+                `${rowIndex}-${colIndex}|${count}|${this.listVersion}`)
             }
             .width('100%')
             .margin({ bottom: 6 })
-          }, (line: number[], rowIndex: number) => `${rowIndex}`)
+          }, (line: number[], rowIndex: number) => `${rowIndex}|${this.listVersion}`)
           Text('有记录的日子会亮一点；空着也没关系。')
             .fontSize(10.5)
             .fontColor(C.ink3)
@@ -374,6 +383,8 @@ export struct GrowthView {
                       .border({ width: 1, color: C.rule })
                       .onClick(() => {
                         this.editingId = this.editingId === row.id ? '' : row.id;
+                        // 展开/收起也要重建行，否则 itemBuilder 里的 if 不会重新求值
+                        this.listVersion = this.listVersion + 1;
                       })
                   }
                   .width('100%')
@@ -384,14 +395,17 @@ export struct GrowthView {
                       ForEach(GROWTH_CATEGORIES, (name: string) => {
                         Text(name)
                           .fontSize(10.5)
-                          .fontColor(C.ink2)
+                          .fontColor(categoryLabel(row.category) === name ? C.paper : C.ink2)
                           .padding({ left: 11, right: 11, top: 6, bottom: 6 })
                           .borderRadius(S.pill)
-                          .border({ width: 1, color: C.rule })
-                          .backgroundColor(C.paper)
+                          .border({
+                            width: 1,
+                            color: categoryLabel(row.category) === name ? C.ink : C.rule
+                          })
+                          .backgroundColor(categoryLabel(row.category) === name ? C.ink : C.paper)
                           .margin({ right: 7, top: 8 })
                           .onClick(() => this.retag(row.id, name))
-                      }, (name: string) => name)
+                      }, (name: string) => `${name}|${this.listVersion}`)
                       Text('删掉这条')
                         .fontSize(10.5)
                         .fontColor(C.cinnabar)
@@ -407,10 +421,10 @@ export struct GrowthView {
                 .width('100%')
                 .padding({ top: 11, bottom: 11 })
                 .border({ width: { bottom: 1 }, color: C.ruleSoft })
-              }, (row: GrowthRow) => row.id)
+              }, (row: GrowthRow) => `${row.id}|${categoryLabel(row.category)}|${this.listVersion}`)
             }
             .width('100%')
-          }, (group: GrowthDayGroup) => group.date)
+          }, (group: GrowthDayGroup) => `${group.date}|${this.listVersion}`)
         }
 
         if (this.summary.earliest !== null) {

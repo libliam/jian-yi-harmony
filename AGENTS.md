@@ -133,6 +133,25 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 - 回顾页是第 4 个 `@Entry` 页面；搜索结果点「微光」时不 pop 搜索页、直接 push 回顾页，返回时回到刚才的搜索结果，符合系统页面栈语义。
 - 二期（未做）：桌面服务卡片 / 长按图标快捷方式实现真正的「随时随地」、通知点击直达录入、数值累计展示。这些都是**系统能力**，别用自绘按钮糊弄过去。
 
+### 3.7 ForEach 的 key 必须带上展示字段与交互状态（2026-11-16 真机反馈）
+
+**现象**：微光回顾页点维度标签没反应，补标选了新维度后那一行还显示旧标签。写库是成功的（`updateGrowthCategory` 正常），`load()` 也重拉了数据，HiLog 一条错都没有。
+
+**根因**：`ForEach(arr, itemBuilder, keyGenerator)` 非首次渲染时**只按 key 判断能否复用组件**。原实现 key 只有不变的 `row.id` / `group.date`：
+
+- key 相同 → 复用旧组件 → itemBuilder 不重跑 → `if (this.editingId === row.id)` 不重新求值，补标面板压根不展开；
+- 改了 `category` 但 id 不变 → 复用旧组件 → 标签文本还是闭包里旧 `row` 的值。
+
+这就是华为开发者博客描述的「数据改了、列表不刷新，而且一条报错都不产生」。`@State` 只观察第一层也救不了：即使 `groups` 整个换成新数组，key 没变照样复用。**界面没变但库里变了，先查 ForEach 第三个参数，别去改数据层。**
+
+**修法（官方推荐）**：把展示字段与影响渲染的状态拼进 key，别只用 id。
+
+- `GrowthView` 加 `@State listVersion`：`load()` 结束、点标签展开/收起时各 +1；外层组 key = `${group.date}|${listVersion}`，内层行 key = `${row.id}|${categoryLabel(row.category)}|${listVersion}`，维度分布 = `${item.name}|${item.count}|${listVersion}`，热力 = `${index}|${count}|${listVersion}`。展示字段本身进 key 是双保险，即使版本号没生效也能刷新。
+- 补标选项给当前维度加深色高亮，选中反馈一眼可见。
+- `QuickSheet.miniChips` 的 key 从 `kind + opt` 改成 `${kind}|${opt}|${current}` —— 同一个坑：录入弹层那排维度 / 类型 / 心情 chips 的选中态原本也不会变。
+
+**两条官方约束**：keyGenerator 只允许**读取**状态、不允许改变组件状态；itemGenerator 与 keyGenerator 是否声明 `index` 必须一致，否则框架会在返回值后自动拼 index。本项目几处 ForEach 两边是对称的。key 里不要塞与渲染无关的字段（时间戳、内部状态），会导致每帧重建。
+
 ## 4. 系统能力清单（当前状态）
 
 | 能力 | 状态 | 说明 |
@@ -147,7 +166,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 桌面图标 / 启动窗口 | ✅ 已做，真机已确认 | 分层图标两层 1024² + `startIcon` 152²，纸墨风三方案可切换；11-13 用户确认桌面图标已变成简牍方案，见 3.5 |
 | 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
-| 微光 · 随手记与回顾 | ✅ 已实现，待真机验证 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；设计取舍见 3.6 |
+| 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
 
 **下一步优先级**：P1 状态栏与安全区、把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）、微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。

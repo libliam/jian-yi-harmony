@@ -141,7 +141,8 @@ struct Index {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor(C.paper)
+      // 用 background 而非 backgroundColor：纸色会延伸进状态栏 / 手势条避让区，内容仍留在安全区（背景沉浸）
+      .background(C.paper)
 
       // 全局悬浮：快速记录。弹层打开时让位；搜索/二级页是独立页面，不在这一层
       if (this.ready && this.sheetType.length === 0) {

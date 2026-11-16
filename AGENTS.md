@@ -27,7 +27,7 @@
 | 项 | 值 |
 |---|---|
 | 平台 | HarmonyOS NEXT，`compatibleSdkVersion 6.1.1(24)`，`targetSdkVersion 26.0.1` |
-| 编译 | DevEco Studio 5.0+；**本机没有 SDK / hvigorw，Agent 无法真编译** |
+| 编译 | DevEco Studio 5.0+；本机装有 DevEco Studio 26 + `devecocli`，Agent 可 `devecocli build` 真编译（2026-11-16 起可用，见 3.9 附注） |
 | 入口 Ability | `entry/src/main/ets/entryability/EntryAbility.ets` → `loadContent('pages/Index')` |
 | 页面注册 | `entry/src/main/resources/base/profile/main_pages.json`（4 个页面，Index 第一为启动页） |
 | 主页面 | `entry/src/main/ets/pages/Index.ets`（页面栈底） |
@@ -163,6 +163,22 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 - **显式刷新**：回顾页用 ArkUI 原生 `Refresh` 组件包住 `Scroll`，`@State refreshing` 走 `$$` 双向绑定，`onRefreshing` 里 `load()` 结束后复位（成功/失败都要复位，否则刷新头收不回去）。这是系统手势，不是自绘按钮。
 - 下拉刷新目前只在 `GrowthView` 落地；其它视图根组件结构不一（TodayView 是 `Scroll`，其余多为 `List` / 自定义容器），推广时逐个套，别一次性批量替换。
 
+### 3.9 状态栏与安全区：组件级背景沉浸（2026-11-16）
+
+**问题**：窗口默认非沉浸式，状态栏 / 手势条避让区由系统上色，与纸色页面割裂；且窗口默认底色在系统深色模式下是 `#FF1A1A1A`，页面转场 / 首帧可能闪黑（违反「切深浅色不闪黑」验收标准）。
+
+**方案**（官方最佳实践「组件设置背景沉浸」，全工程 4 个页面根组件 + EntryAbility 各改一处，零手动避让计算）：
+
+- 页面根组件用 `.background(C.paper)` 而非 `.backgroundColor(C.paper)`——`background()` 的 ResourceColor 重载自 API 20 起支持，且背景会**自动延伸进状态栏 / 手势条避让区**，内容仍留在安全区内，刘海 / 手势条 / 折叠屏 / 横竖屏全部自动适配。前提是组件与安全区边界重合（4 个页面根都是 100%×100%，满足）。**别顺手把它改回 `backgroundColor`**，那会退回「避让区系统上色」的割裂效果。
+- `EntryAbility.onWindowStageCreate` 里 `getMainWindowSync()` 后：`setWindowBackgroundColor(C.paper)`（堵深色模式转场闪黑）+ `setWindowSystemBarProperties({ statusBarContentColor: C.ink, navigationBarContentColor: C.ink })`（状态栏时间 / 电量图标墨色压在纸底上可读）。
+- **签名核对过本机 SDK `.d.ts`**：`setWindowBackgroundColor` 是同步 `void`（不能 `.catch`），`setWindowSystemBarProperties` 返回 `Promise<void>`。
+
+**没选窗口级全屏（`setWindowLayoutFullScreen` + 手动 `getWindowAvoidArea` 避让）的原因**：纯色背景页面两种方案视觉效果完全一致，组件级改动小、无 inset 插值、无 `avoidAreaChange` 监听，风险低得多。以后若要「内容滚动到状态栏底下」的效果再升级。
+
+**真机验证清单**：状态栏时间 / 电量呈墨色且底色为纸色无缝；底部手势条区域纸色、tab 标签不被遮挡；系统切深色模式后启动 / 页面转场不闪黑；录入弹层（QuickSheet）键盘弹出正常。`devecocli build` 已通过，效果待真机确认。
+
+**3.1 附注（2026-11-16）**：本机 Agent 环境已装 DevEco Studio 26.0（`DEVECO_HOME=D:\Program Files\Huawei\DevEco Studio`）与 `devecocli`，`arkts_check` + `devecocli build` 全流程可用，3.1「本机无法真编译」的说法已过时；但「接口名以 SDK `.d.ts` 为准」的教训仍然有效。
+
 ## 4. 系统能力清单（当前状态）
 
 | 能力 | 状态 | 说明 |
@@ -173,7 +189,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 本地持久化 | ✅ | RelationalStore + Preferences，断网可用 |
 | 页面数据刷新 | ✅ 全局自动；下拉刷新部分 | 写库 → `bumpRevision()` → 各视图 `@Watch('onRev')` 重拉；回顾页另有原生 `Refresh` 下拉手势，其它页面待推广，见 3.8 |
 | 迁移 Navigation / NavPathStack | ⬜ 待做 | router 体系官方已不推荐；`Navigation` 支持分栏、路由拦截、引用传参 |
-| 状态栏 / 安全区 / 沉浸式 | ⬜ 未做 | 目前依赖默认非沉浸式窗口，需按真机刘海与手势条验证 |
+| 状态栏 / 安全区 / 沉浸式 | 🟡 已做（组件级背景沉浸），待真机验证 | 4 个页面根 `.background(C.paper)` + EntryAbility 窗口底色 / 状态栏墨色图标，见 3.9 |
 | 通知提醒 | 🟡 已实现，待真机验证 | `common/Reminder.ets`：每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；真机前需 AGC 开通能力，见 3.4 |
 | 桌面图标 / 启动窗口 | ✅ 已做，真机已确认 | 分层图标两层 1024² + `startIcon` 152²，纸墨风三方案可切换；11-13 用户确认桌面图标已变成简牍方案，见 3.5 |
 | 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
@@ -181,7 +197,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
 
-**下一步优先级**：P1 状态栏与安全区、把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）、微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+**下一步优先级**：P1 把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）、微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 
 ## 5. 给 Agent 的工作准则
@@ -189,7 +205,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 1. **改文件前先重新 Read**。用户会在 DevEco Studio 里手动修代码（已经发生过一次），不要拿记忆里的旧内容去 `Edit`；`old_string` 一律以磁盘现状为准。改完顺手看 `git status` 确认没碰到用户自己的工作。
 2. 不引入第三方 UI 框架、npm 运行时依赖，不引入 WebView 承载业务 UI（project_rules 2 + 本文第 1 节）。
 3. 做交互前先问一句：**这是系统能力还是界面自绘？** 系统能力优先用 Kit / 生命周期 / 路由栈，别习惯性画个按钮了事。
-4. 本机不做编译；交付前做静态自检：括号平衡、相对导入路径、装饰器参数为字面量、无未使用导入、可空类型处理、新增页面是否同步 `main_pages.json`。并在回复里明确标注「未编译验证」。
+4. 本机可用 `arkts_check` + `devecocli build` 编译验证（见 3.1 附注）；改完先 `arkts_check` 再 `devecocli build`。静态自检仍要看：相对导入路径、装饰器参数为字面量、无未使用导入、可空类型处理、新增页面是否同步 `main_pages.json`。
 5. 改数据层遵守 `DB_VERSION + 1` 与 `migrate()`，禁止改建表语句；页面里不出现 SQL。
 6. 原型与代码不一致时以 `jianyi-prototype.html` 为准并同步代码（project_rules 6），但**原型只是设计参考，不是运行时**。
 7. 完成实质工作后把结论追加到 `.workbuddy/memory/YYYY-MM-DD.md`；用户表达的长期偏好另写 `.workbuddy/memory/MEMORY.md`。**不要删除 `.workbuddy/` 目录**。

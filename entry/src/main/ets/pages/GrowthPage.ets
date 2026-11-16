@@ -37,6 +37,7 @@ struct GrowthPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(C.paper)
+    // background 而非 backgroundColor：纸色延伸进状态栏 / 手势条避让区（背景沉浸）
+    .background(C.paper)
   }
 }

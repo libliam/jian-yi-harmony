@@ -12,6 +12,7 @@
 | 微光 · 成长记录 | 🟡 真机已能运行，刷新链路已修待复验 | 今日页一步录入、独立回顾页（密度 / 维度分布 / 时间线 / 那时的我）、本地推断维度、搜索接入；11-16 两轮修复「补标不实时生效」（`ForEach` key 必须纯函数，见 `AGENTS.md` 3.7），并补原生下拉刷新（3.8），见下 |
 | 系统返回键 | ✅ 完成，真机已验证 | 搜索/二级页由系统页面栈逐层 pop；`Index.onBackPress` 管弹层、回今日、二次退出 Toast；11-13 手机确认逐层返回与退出提示 |
 | 原生页面栈 | ✅ 完成，真机已验证 | `Index` / `SearchPage` / `SubPage` 三个 `@Entry` 页面，`UIContext.getRouter()` push/back |
+| 状态栏与安全区 | 🟡 已实现，待真机验证 | 组件级背景沉浸（4 页根 `.background`）+ 窗口纸色底色 + 状态栏墨色图标，刘海 / 手势条自动避让，见 `AGENTS.md` 3.9 |
 | 迁移 Navigation | ⬜ 待做 | router 体系官方已不推荐，后续换 `NavPathStack` 以支持分栏与路由拦截 |
 | 通知提醒 | 🟡 已实现，待真机验证 | 每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；AGC 开通能力与分步验证法见 `AGENTS.md` 3.4 |
 | 应用图标 | ✅ 完成，真机已确认 | 纸墨风分层图标（简牍方案）+ 启动窗口图标，三方案可用脚本切换，见「应用图标」一节 |
@@ -26,7 +27,7 @@
 
 **鸿蒙工程**用 DevEco Studio 5.0+ 打开本目录即可，`entry/src/main/ets/pages/Index.ets` 是入口页。
 当前代码按 `compatibleSdkVersion 6.1.1(24)` 的 API 编写，2026-11-12 已在 DevEco Studio 修复编译问题并完成真机预览。
-Agent 侧所在机器没有 HarmonyOS SDK，改动仍需 Studio 复验；给编码助手看的约定与踩坑记录见 [`AGENTS.md`](./AGENTS.md)。
+Agent 侧所在机器已装 DevEco Studio 26 + `devecocli`（2026-11-16 起），改动可 `arkts_check` + `devecocli build` 编译验证；运行效果仍以真机复验为准。给编码助手看的约定与踩坑记录见 [`AGENTS.md`](./AGENTS.md)。
 
 ## 目录结构
 

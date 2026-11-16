@@ -19,9 +19,21 @@ import { bumpRevision, closeGrowth, openSheet } from '../common/Bus';
 import { C, S, SERIF } from '../common/Theme';
 import { today, lastNDays, formatTime } from '../common/DateUtil';
 
+/**
+ * 渲染用包装：把「会变的展示字段与展开状态」算进 viewKey。
+ * ForEach 的 keyGenerator 必须是纯函数、只读 item 自身字段；一旦在里面读组件状态变量
+ * （例如上版的 listVersion），框架未必重算 key，数据更新了界面却不动。见 AGENTS.md 3.7。
+ */
+interface GrowthItem {
+  row: GrowthRow;
+  viewKey: string;
+}
+
 interface GrowthDayGroup {
   date: string;
-  items: GrowthRow[];
+  items: GrowthItem[];
+  /** 汇总组内所有行的 viewKey：任一行变化，整组都要换 key 才能重建内层列表 */
+  viewKey: string;
 }
 
 function emptySummary(): GrowthSummary {
@@ -39,12 +51,10 @@ export struct GrowthView {
   @State groups: GrowthDayGroup[] = [];
   @State heatRows: number[][] = [];
   @State editingId: string = '';
-  /**
-   * 列表刷新版本号。ForEach 只按 key 判断能否复用组件：key 不变就复用旧组件、
-   * 不重跑 itemBuilder。因此「改了维度」和「展开补标面板」都必须让 key 跟着变，
-   * 否则数据写进库了、屏幕还是旧值。见 AGENTS.md 3.7。
-   */
-  @State listVersion: number = 0;
+  /** 最近一次读到的全量数据：点标签展开时用它同步重算 viewKey，不必再读库 */
+  @State allRows: GrowthRow[] = [];
+  /** 原生下拉刷新组件的双向绑定状态 */
+  @State refreshing: boolean = false;
   @State hasThen: boolean = false;
   @State thenContent: string = '';
   @State thenDate: string = '';
@@ -59,26 +69,12 @@ export struct GrowthView {
 
   private async load(): Promise<void> {
     const all: GrowthRow[] = await listAllGrowth();
+    this.allRows = all;
     const dates: string[] = lastNDays(28);
     const thenDate: string = lastNDays(31)[0];
     const sum: GrowthSummary = summarize(
       all, dates, monthPrefix(today()), prevMonthPrefix(), thenDate
     );
-
-    // 时间线按日分组，从新到旧，最多保留 20 天
-    const groups: GrowthDayGroup[] = [];
-    for (let i: number = all.length - 1; i >= 0; i--) {
-      const row: GrowthRow = all[i];
-      const last: GrowthDayGroup | null = groups.length > 0 ? groups[groups.length - 1] : null;
-      if (last === null || last.date !== row.date) {
-        if (groups.length >= 20) {
-          break;
-        }
-        const group: GrowthDayGroup = { date: row.date, items: [] };
-        groups.push(group);
-      }
-      groups[groups.length - 1].items.push(row);
-    }
 
     const heat: number[][] = [];
     for (let r: number = 0; r < 4; r++) {
@@ -106,24 +102,58 @@ export struct GrowthView {
     }
 
     this.summary = sum;
-    this.groups = groups;
+    this.groups = this.makeGroups(all);
     this.heatRows = heat;
-    // 数据换了一批，让下面所有 ForEach 的 key 一起失效，强制按新数据重建行
-    this.listVersion = this.listVersion + 1;
+  }
+
+  /**
+   * 时间线按日分组，从新到旧，最多 20 天。
+   * 行的 viewKey 带上维度、updatedAt 与展开状态；组的 viewKey 再汇总组内所有行，
+   * 任一行变化都会让整组换 key → 外层重建 → 内层 ForEach 拿到的是新数据。
+   */
+  private makeGroups(all: GrowthRow[]): GrowthDayGroup[] {
+    const groups: GrowthDayGroup[] = [];
+    for (let i: number = all.length - 1; i >= 0; i--) {
+      const row: GrowthRow = all[i];
+      const last: GrowthDayGroup | null = groups.length > 0 ? groups[groups.length - 1] : null;
+      if (last === null || last.date !== row.date) {
+        if (groups.length >= 20) {
+          break;
+        }
+        const group: GrowthDayGroup = { date: row.date, items: [], viewKey: '' };
+        groups.push(group);
+      }
+      const item: GrowthItem = { row: row, viewKey: this.itemKey(row) };
+      groups[groups.length - 1].items.push(item);
+    }
+    for (const group of groups) {
+      let joined: string = '';
+      for (const item of group.items) {
+        joined = joined + item.viewKey + '~';
+      }
+      group.viewKey = `${group.date}|${joined}`;
+    }
+    return groups;
+  }
+
+  /** 补标会同时更新 updated_at，所以维度一改，这个 key 必定变化 */
+  private itemKey(row: GrowthRow): string {
+    const editing: string = this.editingId === row.id ? 'open' : 'closed';
+    return `${row.id}|${categoryLabel(row.category)}|${row.updatedAt}|${editing}`;
   }
 
   private async retag(id: string, name: string): Promise<void> {
     await updateGrowthCategory(id, categoryForDb(name));
     this.editingId = '';
-    bumpRevision();
     await this.load();
+    bumpRevision();
   }
 
   private async remove(id: string): Promise<void> {
     await removeGrowth(id);
     this.editingId = '';
-    bumpRevision();
     await this.load();
+    bumpRevision();
   }
 
   private maxCategory(): number {
@@ -150,6 +180,8 @@ export struct GrowthView {
   }
 
   build() {
+    // 原生下拉刷新：写入后总线会自动刷新，这里再给一个用户可主动触发的系统手势
+    Refresh({ refreshing: $$this.refreshing }) {
     Scroll() {
       Column() {
         Row() {
@@ -231,7 +263,7 @@ export struct GrowthView {
             }
             .width('100%')
             .margin({ bottom: 9 })
-          }, (item: CategoryCount) => `${item.name}|${item.count}|${this.listVersion}`)
+          }, (item: CategoryCount) => `${item.name}|${item.count}`)
         }
         .width('100%')
         .padding(16)
@@ -273,12 +305,11 @@ export struct GrowthView {
                   .backgroundColor(count > 0 ? C.cinnabar : C.ruleSoft)
                   .opacity(count > 2 ? 1 : count > 0 ? 0.55 : 1)
                   .margin({ right: 6 })
-              }, (count: number, colIndex: number) =>
-                `${rowIndex}-${colIndex}|${count}|${this.listVersion}`)
+              }, (count: number, colIndex: number) => `${rowIndex}-${colIndex}|${count}`)
             }
             .width('100%')
             .margin({ bottom: 6 })
-          }, (line: number[], rowIndex: number) => `${rowIndex}|${this.listVersion}`)
+          }, (line: number[], rowIndex: number) => `${rowIndex}|${line.join(',')}`)
           Text('有记录的日子会亮一点；空着也没关系。')
             .fontSize(10.5)
             .fontColor(C.ink3)
@@ -331,7 +362,7 @@ export struct GrowthView {
           .fontColor(C.ink)
           .margin({ top: 26, bottom: 6 })
           .alignSelf(ItemAlign.Start)
-        Text('点一下右边的维度可以补标或改掉')
+        Text('点维度可补标或改掉 · 下拉可以刷新')
           .fontSize(10.5)
           .fontColor(C.ink3)
           .margin({ bottom: 10 })
@@ -352,21 +383,21 @@ export struct GrowthView {
                 .letterSpacing(2)
                 .margin({ top: 16, bottom: 6 })
                 .alignSelf(ItemAlign.Start)
-              ForEach(group.items, (row: GrowthRow) => {
+              ForEach(group.items, (item: GrowthItem) => {
                 Column() {
                   Row() {
-                    Text(formatTime(row.createdAt))
+                    Text(formatTime(item.row.createdAt))
                       .fontSize(10)
                       .fontColor(C.ink3)
                       .width(42)
                     Column() {
-                      Text(row.content)
+                      Text(item.row.content)
                         .fontSize(12.5)
                         .lineHeight(22)
                         .fontColor(C.ink)
                         .alignSelf(ItemAlign.Start)
-                      if (amountLabel(row).length > 0) {
-                        Text(amountLabel(row))
+                      if (amountLabel(item.row).length > 0) {
+                        Text(amountLabel(item.row))
                           .fontSize(10)
                           .fontColor(C.ink3)
                           .margin({ top: 3 })
@@ -375,37 +406,37 @@ export struct GrowthView {
                     }
                     .layoutWeight(1)
                     .alignItems(HorizontalAlign.Start)
-                    Text(categoryLabel(row.category))
+                    Text(categoryLabel(item.row.category))
                       .fontSize(10)
-                      .fontColor(categoryLabel(row.category) === '未分类' ? C.ink3 : C.cinnabar)
+                      .fontColor(categoryLabel(item.row.category) === '未分类' ? C.ink3 : C.cinnabar)
                       .padding({ left: 9, right: 9, top: 4, bottom: 4 })
                       .borderRadius(S.pill)
                       .border({ width: 1, color: C.rule })
                       .onClick(() => {
-                        this.editingId = this.editingId === row.id ? '' : row.id;
-                        // 展开/收起也要重建行，否则 itemBuilder 里的 if 不会重新求值
-                        this.listVersion = this.listVersion + 1;
+                        this.editingId = this.editingId === item.row.id ? '' : item.row.id;
+                        // 用缓存数据同步重算 viewKey：不读库，展开/收起立即生效
+                        this.groups = this.makeGroups(this.allRows);
                       })
                   }
                   .width('100%')
                   .alignItems(VerticalAlign.Top)
 
-                  if (this.editingId === row.id) {
+                  if (this.editingId === item.row.id) {
                     Flex({ wrap: FlexWrap.Wrap }) {
                       ForEach(GROWTH_CATEGORIES, (name: string) => {
                         Text(name)
                           .fontSize(10.5)
-                          .fontColor(categoryLabel(row.category) === name ? C.paper : C.ink2)
+                          .fontColor(categoryLabel(item.row.category) === name ? C.paper : C.ink2)
                           .padding({ left: 11, right: 11, top: 6, bottom: 6 })
                           .borderRadius(S.pill)
                           .border({
                             width: 1,
-                            color: categoryLabel(row.category) === name ? C.ink : C.rule
+                            color: categoryLabel(item.row.category) === name ? C.ink : C.rule
                           })
-                          .backgroundColor(categoryLabel(row.category) === name ? C.ink : C.paper)
+                          .backgroundColor(categoryLabel(item.row.category) === name ? C.ink : C.paper)
                           .margin({ right: 7, top: 8 })
-                          .onClick(() => this.retag(row.id, name))
-                      }, (name: string) => `${name}|${this.listVersion}`)
+                          .onClick(() => this.retag(item.row.id, name))
+                      }, (name: string) => name)
                       Text('删掉这条')
                         .fontSize(10.5)
                         .fontColor(C.cinnabar)
@@ -413,7 +444,7 @@ export struct GrowthView {
                         .borderRadius(S.pill)
                         .border({ width: 1, color: C.rule })
                         .margin({ top: 8 })
-                        .onClick(() => this.remove(row.id))
+                        .onClick(() => this.remove(item.row.id))
                     }
                     .width('100%')
                   }
@@ -421,10 +452,10 @@ export struct GrowthView {
                 .width('100%')
                 .padding({ top: 11, bottom: 11 })
                 .border({ width: { bottom: 1 }, color: C.ruleSoft })
-              }, (row: GrowthRow) => `${row.id}|${categoryLabel(row.category)}|${this.listVersion}`)
+              }, (item: GrowthItem) => item.viewKey)
             }
             .width('100%')
-          }, (group: GrowthDayGroup) => `${group.date}|${this.listVersion}`)
+          }, (group: GrowthDayGroup) => group.viewKey)
         }
 
         if (this.summary.earliest !== null) {
@@ -441,6 +472,17 @@ export struct GrowthView {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Off)
+    }
+    .onRefreshing(() => {
+      this.load().then(() => {
+        this.refreshing = false;
+      }).catch(() => {
+        // 读库失败也要收起刷新头，不能把用户卡在「正在刷新」
+        this.refreshing = false;
+      });
+    })
+    .width('100%')
+    .height('100%')
   }
 
   @Builder

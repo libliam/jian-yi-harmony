@@ -34,7 +34,7 @@
 | 独立页面 | `pages/SearchPage.ets`（搜索）、`pages/SubPage.ets`（习惯/心情/摘录/阅读）、`pages/GrowthPage.ets`（微光回顾） |
 | 五个主视图 | `view/TodayView / QuoteView / TodoView / ReaderView / PlanView` |
 | 全局弹层 | `view/QuickSheet`（录入），在 Index / SubPage / GrowthPage 各渲染一份，靠 `uiSheet` 控制 |
-| 状态总线 | `common/Bus.ets`，AppStorage：`dbRevision` 与 `uiTab/uiTodoPane/uiSheet/uiSub/uiQuoteId/uiPlanDate`；导航动作走 `UIContext.getRouter()` |
+| 状态总线 | `common/Bus.ets`，AppStorage：`dbRevision` 与 `uiTab/uiTodoPane/uiSheet/uiSub/uiQuoteId/uiPlanDate`；`bumpRevision()` 是全局刷新总线，各视图 `@Watch('onRev')` 重拉；导航动作走 `UIContext.getRouter()` |
 | 数据层 | `entry/src/main/ets/db/`，SQLite `databases/jianyi.db`，DB v2：9 张表 + 9 个仓库 + `Seed.ets` 示例数据 |
 | 微光模块 | `db/GrowthRepo.ets` + `common/GrowthTag.ets`（本地推断）+ `common/GrowthAnalysis.ets`（现算统计）+ `view/GrowthCard.ets`（一步录入）+ `view/GrowthView.ets`（回顾），设计取舍见 3.6 |
 | 通知提醒 | `common/Reminder.ets` + `module.json5` 的 `PUBLISH_AGENT_REMINDER` 权限；开关与 reminderId 存 Preferences `jianyi_meta` |
@@ -144,13 +144,24 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 
 这就是华为开发者博客描述的「数据改了、列表不刷新，而且一条报错都不产生」。`@State` 只观察第一层也救不了：即使 `groups` 整个换成新数组，key 没变照样复用。**界面没变但库里变了，先查 ForEach 第三个参数，别去改数据层。**
 
-**修法（官方推荐）**：把展示字段与影响渲染的状态拼进 key，别只用 id。
+**第一版修法（不够，当天被真机否掉）**：加了 `@State listVersion` 并把它拼进 keyGenerator。用户反馈「切换标签不是实时变，要返回重进才看到」——**keyGenerator 里读组件状态变量不建立可靠依赖**，框架未必重算 key；只有返回重进触发首次渲染才拿到新数据。
 
-- `GrowthView` 加 `@State listVersion`：`load()` 结束、点标签展开/收起时各 +1；外层组 key = `${group.date}|${listVersion}`，内层行 key = `${row.id}|${categoryLabel(row.category)}|${listVersion}`，维度分布 = `${item.name}|${item.count}|${listVersion}`，热力 = `${index}|${count}|${listVersion}`。展示字段本身进 key 是双保险，即使版本号没生效也能刷新。
-- 补标选项给当前维度加深色高亮，选中反馈一眼可见。
-- `QuickSheet.miniChips` 的 key 从 `kind + opt` 改成 `${kind}|${opt}|${current}` —— 同一个坑：录入弹层那排维度 / 类型 / 心情 chips 的选中态原本也不会变。
+**正解：keyGenerator 必须是纯函数，只读 item 自身字段；把变化信息编进数据源对象。**
 
-**两条官方约束**：keyGenerator 只允许**读取**状态、不允许改变组件状态；itemGenerator 与 keyGenerator 是否声明 `index` 必须一致，否则框架会在返回值后自动拼 index。本项目几处 ForEach 两边是对称的。key 里不要塞与渲染无关的字段（时间戳、内部状态），会导致每帧重建。
+- `GrowthView` 用 `GrowthItem { row, viewKey }` / `GrowthDayGroup { date, items, viewKey }` 包装数据。`itemKey = ${id}|${categoryLabel(category)}|${updatedAt}|${展开状态}` —— 补标会写 `updated_at`，所以维度一改 key 必变；`group.viewKey` 再汇总组内所有行，任一行变化整组换 key → 外层重建 → 内层拿到新数据。
+- `load()` 缓存 `allRows`；点标签时 `this.groups = this.makeGroups(this.allRows)` **同步重算 viewKey、不读库**，展开/收起立即生效。
+- 维度分布 / 热力 / 补标选项的 key 全部改成纯 item 字段（`name|count`、`index|count`、`line.join(',')`），不再引用任何 `this.*`。
+- 补标选项给当前维度加深色高亮；`QuickSheet.miniChips` 的 key 从 `kind + opt` 改成 `${kind}|${opt}|${current}`，录入弹层 chips 选中态才会变。
+
+**两条官方约束**：keyGenerator 是纯函数，**不要读组件状态变量、更不能改变组件状态**；itemGenerator 与 keyGenerator 是否声明 `index` 必须一致，否则框架会在返回值后自动拼 index。本项目几处 ForEach 两边对称。key 里不要塞与渲染无关的字段，会导致每帧重建。
+
+**排查顺序**：界面没变但库里变了 → 先查 ForEach 第三个参数是不是纯函数、有没有带展示字段，别去改数据层；确认数据没重拉，再查 `dbRevision` 总线。
+
+### 3.8 页面刷新机制：自动总线 + 原生下拉手势
+
+- **全局自动刷新**：任何写库成功后调 `bumpRevision()`（`common/Bus.ets`），各视图的 `@StorageLink('dbRevision') @Watch('onRev')` 自动重拉数据；`Index.onPageShow` 回前台也会 bump 一次。**正常情况下用户不需要手动刷新**。
+- **显式刷新**：回顾页用 ArkUI 原生 `Refresh` 组件包住 `Scroll`，`@State refreshing` 走 `$$` 双向绑定，`onRefreshing` 里 `load()` 结束后复位（成功/失败都要复位，否则刷新头收不回去）。这是系统手势，不是自绘按钮。
+- 下拉刷新目前只在 `GrowthView` 落地；其它视图根组件结构不一（TodayView 是 `Scroll`，其余多为 `List` / 自定义容器），推广时逐个套，别一次性批量替换。
 
 ## 4. 系统能力清单（当前状态）
 
@@ -160,6 +171,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 真实页面栈与系统转场 | ✅ 已做并真机确认（router） | 3 个 `@Entry` 页面 + `main_pages.json`；`UIContext.getRouter()` push / back |
 | 前后台 / 页面生命周期 | 🟡 部分 | `EntryAbility` 有 onForeground/onBackground、onCreate 预热 DB；三个页面 `onPageShow` 挂 UIContext，Index 回来刷新数据 |
 | 本地持久化 | ✅ | RelationalStore + Preferences，断网可用 |
+| 页面数据刷新 | ✅ 全局自动；下拉刷新部分 | 写库 → `bumpRevision()` → 各视图 `@Watch('onRev')` 重拉；回顾页另有原生 `Refresh` 下拉手势，其它页面待推广，见 3.8 |
 | 迁移 Navigation / NavPathStack | ⬜ 待做 | router 体系官方已不推荐；`Navigation` 支持分栏、路由拦截、引用传参 |
 | 状态栏 / 安全区 / 沉浸式 | ⬜ 未做 | 目前依赖默认非沉浸式窗口，需按真机刘海与手势条验证 |
 | 通知提醒 | 🟡 已实现，待真机验证 | `common/Reminder.ets`：每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；真机前需 AGC 开通能力，见 3.4 |

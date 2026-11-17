@@ -14,7 +14,7 @@
 | 原生页面栈 | ✅ 完成，真机已验证 | `Index` / `SearchPage` / `SubPage` 三个 `@Entry` 页面，`UIContext.getRouter()` push/back |
 | 状态栏与安全区 | 🟡 已实现，待真机验证 | 组件级背景沉浸（4 页根 `.background`）+ 窗口纸色底色 + 状态栏墨色图标，刘海 / 手势条自动避让，见 `AGENTS.md` 3.9 |
 | 迁移 Navigation | ⬜ 待做 | router 体系官方已不推荐，后续换 `NavPathStack` 以支持分栏与路由拦截 |
-| 通知提醒 | 🟡 已实现，待真机验证 | 每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；AGC 开通能力与分步验证法见 `AGENTS.md` 3.4 |
+| 通知提醒 | 🟡 已实现，待真机验证 | 每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；另有业务提醒：待办汇总 / 习惯每日 / 日程一次性（`BizReminder.ets`）。AGC 开通能力与分步验证法见 `AGENTS.md` 3.4 |
 | 应用图标 | ✅ 完成，真机已确认 | 纸墨风分层图标（简牍方案）+ 启动窗口图标，三方案可用脚本切换，见「应用图标」一节 |
 | 电子书阅读 | 🟡 部分 | 书架与阅读进度已接库；正文解析待 Reader Kit |
 | 云备份 | ⬜ 未开始 | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
@@ -60,6 +60,7 @@ entry/src/main/ets/
     DateUtil.ets          日期格式化
     Bus.ets               AppStorage 刷新总线 + UIContext 页面栈入口
     Reminder.ets          通知授权与后台代理提醒（每晚回顾）
+    BizReminder.ets       业务提醒：待办汇总 / 习惯每日 / 日程一次性
     GrowthTag.ets         微光：本地关键词猜维度、数值识别
     GrowthAnalysis.ets    微光：回顾统计纯函数（全部现算）
   pages/                  四个 @Entry 页面：Index（栈底）/ SearchPage / SubPage / GrowthPage
@@ -82,6 +83,7 @@ entry/src/main/ets/
 - **阅读 / 计划**：书架进度、周条切换、时间块与新增安排
 - **快速记录**：悬浮按钮 → 六个入口 → 七种表单，全部真实写库
 - **每晚回顾提醒**：今日页开关 → 通知授权 → 系统级每日 20:30 代理提醒，清后台也能到达（真机需先在 AGC 开通「代理提醒」并手动签名）
+- **业务提醒**：待办汇总（最迫近截止时刻 + 剩余数量，清空自动取消）、习惯每日打卡提醒、日程开始一次性提醒；只在通知已授权时静默发布，绝不打断写库
 
 所有写入后通过 `AppStorage` 的 `dbRevision` 广播刷新（各视图 `@Watch('onRev')` 自动重拉），页面不互相持有引用，也不出现 SQL。**正常情况下不需要手动刷新**；回顾页另提供原生下拉刷新手势，机制见 `AGENTS.md` 3.8。
 

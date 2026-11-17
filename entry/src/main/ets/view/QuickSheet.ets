@@ -5,6 +5,7 @@
  * 每种表单保存成功后 bumpRevision()，五个视图自动重拉数据。
  */
 
+import { common } from '@kit.AbilityKit';
 import { addEntry } from '../db/EntryRepo';
 import { addTodo } from '../db/TodoRepo';
 import { addThought } from '../db/ThoughtRepo';
@@ -13,6 +14,7 @@ import { addHabit } from '../db/HabitRepo';
 import { addEvent } from '../db/EventRepo';
 import { addGrowth } from '../db/GrowthRepo';
 import { EntryType, TodoBucket, Priority, HabitPeriod } from '../db/Models';
+import { syncTodoSummaryReminder, syncHabitReminder, publishEventReminder } from '../common/BizReminder';
 import {
   GROWTH_CATEGORIES, GROWTH_UNCATEGORIZED, guessCategory, parseAmount,
   categoryForDb, GrowthAmount
@@ -121,20 +123,28 @@ export struct QuickSheet {
       }
       // 今天的待办给一个当天截止时间，长期清单不设截止时间
       await addTodo(text, b, p, b === TodoBucket.Today ? atToday(18, 0) : null, null);
+      if (b === TodoBucket.Today) {
+        // 汇总提醒随数据走（最迫近时刻 + 剩余数量）；通知失败不阻断写库，见 BizReminder 头注释
+        syncTodoSummaryReminder(getContext(this) as common.Context).catch(() => {
+        });
+      }
     } else if (this.sheetType === 'think') {
       await addThought(text);
     } else if (this.sheetType === 'mood') {
       const idx: number = MOOD_LABELS.indexOf(this.mood);
       await addMood(today(), idx >= 0 ? idx + 1 : 3, text, null);
     } else if (this.sheetType === 'habit') {
-      await addHabit(text,
-        this.period === '每周' ? HabitPeriod.Weekly : HabitPeriod.Daily,
-        7, this.time);
+      const period: HabitPeriod = this.period === '每周' ? HabitPeriod.Weekly : HabitPeriod.Daily;
+      const habitId: string = await addHabit(text, period, 7, this.time);
+      syncHabitReminder(getContext(this) as common.Context, habitId, text, period, this.time).catch(() => {
+      });
     } else if (this.sheetType === 'event') {
       const parts: string[] = this.time.split(':');
       const date: string = this.planDate.length > 0 ? this.planDate : today();
-      await addEvent(text, date,
-        atDay(date, Number(parts[0]), Number(parts[1])), null, 'local');
+      const startAt: number = atDay(date, Number(parts[0]), Number(parts[1]));
+      const eventId: string = await addEvent(text, date, startAt, null, 'local');
+      publishEventReminder(getContext(this) as common.Context, eventId, text, startAt).catch(() => {
+      });
     } else if (this.sheetType === 'growth') {
       const amount: GrowthAmount | null = parseAmount(text);
       await addGrowth(text, today(), categoryForDb(this.growthTag),

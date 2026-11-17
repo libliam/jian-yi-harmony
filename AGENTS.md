@@ -37,7 +37,7 @@
 | 状态总线 | `common/Bus.ets`，AppStorage：`dbRevision` 与 `uiTab/uiTodoPane/uiSheet/uiSub/uiQuoteId/uiPlanDate`；`bumpRevision()` 是全局刷新总线，各视图 `@Watch('onRev')` 重拉；导航动作走 `UIContext.getRouter()` |
 | 数据层 | `entry/src/main/ets/db/`，SQLite `databases/jianyi.db`，DB v2：9 张表 + 9 个仓库 + `Seed.ets` 示例数据 |
 | 微光模块 | `db/GrowthRepo.ets` + `common/GrowthTag.ets`（本地推断）+ `common/GrowthAnalysis.ets`（现算统计）+ `view/GrowthCard.ets`（一步录入）+ `view/GrowthView.ets`（回顾），设计取舍见 3.6 |
-| 通知提醒 | `common/Reminder.ets` + `module.json5` 的 `PUBLISH_AGENT_REMINDER` 权限；开关与 reminderId 存 Preferences `jianyi_meta` |
+| 通知提醒 | `common/Reminder.ets`（每晚回顾）+ `common/BizReminder.ets`（待办汇总 / 习惯 / 日程）+ `module.json5` 的 `PUBLISH_AGENT_REMINDER` 权限；reminderId 映射存 Preferences `jianyi_meta` |
 | 应用图标 | `design/generate_icon.py` 生成；AppScope 与 entry **两套**分层资源 + `startIcon.png`，见 3.5 |
 | 视觉常量 | `common/Theme.ets`（纸墨色板），页面与图标都禁止散落十六进制色值 |
 | 参考留档 | `harmony-data/` 是设计参考，**不参与编译**；实际编译的是 `entry/src/main/ets/db/` |
@@ -91,7 +91,16 @@
 
 接口已核对（本工程 API 24）：`notificationManager` 从 `@kit.NotificationKit` 导入，`reminderAgentManager` 从 `@kit.BackgroundTasksKit` 导入；`ReminderRequestAlarm` 用 `hour/minute/daysOfWeek[1..7]` 做每日重复，`ReminderRequestCalendar` 用 `dateTime` 做一次性提醒；`publishReminder(req).then((id: number) => ...)` 返回 reminderId，**`cancelReminder(id)` 有 Promise 重载**（官方 V14 指南已确认，可直接 `await`）。
 `actionButton` 在不同资料里有 `actionButton` / `actionButtons` 单复数差异，本项目暂不使用这个可选字段，避免卡在字段名上。
-**通知失败绝不能阻断写库**，调用方 `.catch()` 记日志即可。本轮只做了「每晚回顾提醒」一个闭环，待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt` 的业务提醒留到下一轮（字段已就绪）。
+**通知失败绝不能阻断写库**，调用方 `.catch()` 记日志即可。
+
+**业务提醒（2026-11-16 接入，`common/BizReminder.ets`）**：待办 / 习惯 / 日程三类已接代理提醒，设计取舍——
+
+- **待办是「汇总提醒」不是每条一条**：快速录入给今日待办的截止时间默认都是当天 18:00，按条发会在同一时刻弹一串通知。汇总只发一条（`todo_summary_reminder_id` 单 key）：最迫近的未来 `dueAt` 时刻 + 剩余数量，新增 / 勾选 / 取消勾选后重算，清空自动取消。调用点：`QuickSheet` 存今日待办后、`TodoView.toggle` 勾选后。
+- **习惯是每日 ALARM**（`habit_rem_<habitId>`）：每天 `remindAt` 时刻响；**打卡后当日不会静音**（alarm 型做不到跳过单日，已知取舍）；**每周习惯不发**（表里没有「周几」字段）。
+- **日程是一次性 CALENDAR**（`event_rem_<eventId>`）：`startAt` 时刻响，已过不发。
+- **授权策略**：只在通知**已授权**时静默发布（`isNotificationEnabledSync`），写库路径绝不调 `requestEnableNotification` 弹窗——授权入口仍是今日页「每晚回顾提醒」开关；被拒过就静默跳过。
+- reminderId 映射存 Preferences `jianyi_meta`，不动表结构（P1 说的「字段已就绪」即指无需 DB v3）。
+- 待办 / 习惯 / 日程目前**没有删除 UI**（`removeTodo` / `removeHabit` / `removeEvent` 仓库接口在但无人调用），所以「删除时取消提醒」的钩子等删除 UI 落地时再接，别漏。
 
 **真机怎么验证（2026-11-13）**：代理提醒由系统到点发出，不在 App 内弹窗，光看界面看不出来。按顺序做：
 
@@ -190,14 +199,14 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 页面数据刷新 | ✅ 全局自动；下拉刷新部分 | 写库 → `bumpRevision()` → 各视图 `@Watch('onRev')` 重拉；回顾页另有原生 `Refresh` 下拉手势，其它页面待推广，见 3.8 |
 | 迁移 Navigation / NavPathStack | ⬜ 待做 | router 体系官方已不推荐；`Navigation` 支持分栏、路由拦截、引用传参 |
 | 状态栏 / 安全区 / 沉浸式 | 🟡 已做（组件级背景沉浸），待真机验证 | 4 个页面根 `.background(C.paper)` + EntryAbility 窗口底色 / 状态栏墨色图标，见 3.9 |
-| 通知提醒 | 🟡 已实现，待真机验证 | `common/Reminder.ets`：每晚 20:30 系统代理提醒 + 今日页开关 + 通知授权；真机前需 AGC 开通能力，见 3.4 |
+| 通知提醒 | 🟡 已实现（每晚回顾 + 业务提醒），待真机验证 | `Reminder.ets`：每晚 20:30 代理提醒 + 今日页开关；`BizReminder.ets`：待办汇总 / 习惯每日 / 日程一次性，见 3.4；真机前需 AGC 开通能力 |
 | 桌面图标 / 启动窗口 | ✅ 已做，真机已确认 | 分层图标两层 1024² + `startIcon` 152²，纸墨风三方案可切换；11-13 用户确认桌面图标已变成简牍方案，见 3.5 |
 | 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
 
-**下一步优先级**：P1 把定时提醒接到待办 `dueAt` / 习惯 `remindAt` / 日程 `startAt`（数据字段已就绪，关闭待办时 `cancelReminder`）、微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+**下一步优先级**：P1 微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出、待办/习惯/日程的删除 UI（落地时记得接「删除取消提醒」钩子，见 3.4）；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 
 ## 5. 给 Agent 的工作准则

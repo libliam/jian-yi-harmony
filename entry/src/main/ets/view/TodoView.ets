@@ -5,10 +5,12 @@
  * 三个分段与原型一致：今日 / 长期 / 待思。
  */
 
+import { common } from '@kit.AbilityKit';
 import { TodoRow, ThoughtRow, TodoBucket, ThoughtStatus } from '../db/Models';
 import { listTodos, setTodoDone, countTodos, TodoStat } from '../db/TodoRepo';
 import { listThoughts, bumpThought } from '../db/ThoughtRepo';
 import { bumpRevision, setTodoPane, openSheet } from '../common/Bus';
+import { syncTodoSummaryReminder } from '../common/BizReminder';
 import { C, S, SERIF, priorityColor, priorityLabel } from '../common/Theme';
 import { dueLabel, isOverdue, formatShortDate } from '../common/DateUtil';
 import { PageHead, EmptyState } from './Parts';
@@ -47,6 +49,11 @@ export struct TodoView {
     await setTodoDone(item.id, item.done === 0);
     bumpRevision();
     await this.load();
+    if (item.bucket === TodoBucket.Today) {
+      // 勾完 / 取消勾选都重算汇总提醒（清空自动取消）；通知失败不阻断写库
+      syncTodoSummaryReminder(getContext(this) as common.Context).catch(() => {
+      });
+    }
   }
 
   private async think(id: string): Promise<void> {

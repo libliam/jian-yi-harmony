@@ -28,7 +28,10 @@ const TAG_OPTIONS: string[] = ['哲思', '写作', '生活', '工作'];
 const BUCKET_OPTIONS: string[] = ['今天', '长期'];
 const PRIORITY_OPTIONS: string[] = ['低', '中', '高'];
 const PERIOD_OPTIONS: string[] = ['每天', '每周'];
-const TIME_OPTIONS: string[] = ['08:30', '09:30', '14:30', '20:30'];
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
 
 /**
  * miniChips 必须按引用传参（对象字面量），@Builder 按值传参时 UI 不随状态刷新，
@@ -55,11 +58,15 @@ export struct QuickSheet {
   @State priority: string = '中';
   @State mood: string = '平静';
   @State period: string = '每天';
-  @State time: string = '09:30';
   @State tip: string = '';
   @State growthTag: string = GROWTH_UNCATEGORIZED;
   @State growthTagTouched: boolean = false;
   @State amountHint: string = '';
+  // TimePicker 滚轮自己管 UI，这里用普通字段存值就够，不触发重渲染
+  private taskDueHour: number = 18;
+  private taskDueMinute: number = 0;
+  private clockHour: number = 9;
+  private clockMinute: number = 30;
 
   onSheetChange(): void {
     if (this.sheetType.length > 0) {
@@ -77,8 +84,11 @@ export struct QuickSheet {
     this.priority = '中';
     this.mood = '平静';
     this.period = '每天';
-    this.time = '09:30';
     this.tip = '';
+    this.taskDueHour = 18;
+    this.taskDueMinute = 0;
+    this.clockHour = 9;
+    this.clockMinute = 30;
     this.growthTag = GROWTH_UNCATEGORIZED;
     this.growthTagTouched = false;
     this.amountHint = '';
@@ -97,8 +107,6 @@ export struct QuickSheet {
       this.mood = value;
     } else if (kind === 'period') {
       this.period = value;
-    } else if (kind === 'time') {
-      this.time = value;
     } else if (kind === 'category') {
       this.growthTag = value;
       this.growthTagTouched = true;
@@ -131,8 +139,8 @@ export struct QuickSheet {
       } else if (this.priority === '低') {
         p = Priority.Low;
       }
-      // 今天的待办给一个当天截止时间，长期清单不设截止时间
-      await addTodo(text, b, p, b === TodoBucket.Today ? atToday(18, 0) : null, null);
+      // 今天的待办截止时间由滚轮选，长期清单不设截止时间
+      await addTodo(text, b, p, b === TodoBucket.Today ? atToday(this.taskDueHour, this.taskDueMinute) : null, null);
       if (b === TodoBucket.Today) {
         // 汇总提醒随数据走（最迫近时刻 + 剩余数量）；通知失败不阻断写库，见 BizReminder 头注释
         syncTodoSummaryReminder(getContext(this) as common.Context).catch(() => {
@@ -145,13 +153,13 @@ export struct QuickSheet {
       await addMood(today(), idx >= 0 ? idx + 1 : 3, text, null);
     } else if (this.sheetType === 'habit') {
       const period: HabitPeriod = this.period === '每周' ? HabitPeriod.Weekly : HabitPeriod.Daily;
-      const habitId: string = await addHabit(text, period, 7, this.time);
-      syncHabitReminder(getContext(this) as common.Context, habitId, text, period, this.time).catch(() => {
+      const remindAt: string = `${pad2(this.clockHour)}:${pad2(this.clockMinute)}`;
+      const habitId: string = await addHabit(text, period, 7, remindAt);
+      syncHabitReminder(getContext(this) as common.Context, habitId, text, period, remindAt).catch(() => {
       });
     } else if (this.sheetType === 'event') {
-      const parts: string[] = this.time.split(':');
       const date: string = this.planDate.length > 0 ? this.planDate : today();
-      const startAt: number = atDay(date, Number(parts[0]), Number(parts[1]));
+      const startAt: number = atDay(date, this.clockHour, this.clockMinute);
       const eventId: string = await addEvent(text, date, startAt, null, 'local');
       publishEventReminder(getContext(this) as common.Context, eventId, text, startAt).catch(() => {
       });
@@ -183,11 +191,21 @@ export struct QuickSheet {
           .backgroundColor(C.paper3)
           .margin({ top: 2, bottom: 18 })
 
-        if (this.sheetType === 'more') {
-          this.morePane()
-        } else {
-          this.formPane()
+        // 表单加了滚轮时间选择后可能比 80% 屏高还高，内容区可滚，保存按钮不再被截断
+        Scroll() {
+          Column() {
+            if (this.sheetType === 'more') {
+              this.morePane()
+            } else {
+              this.formPane()
+            }
+          }
+          .width('100%')
         }
+        .width('100%')
+        .constraintSize({ maxHeight: 480 })
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
       }
       .width('100%')
       .padding({ left: 22, right: 22, bottom: 26 })
@@ -284,6 +302,10 @@ export struct QuickSheet {
       this.miniChips({ options: BUCKET_OPTIONS, current: this.bucket, kind: 'bucket' })
       this.fieldLabel('重要程度')
       this.miniChips({ options: PRIORITY_OPTIONS, current: this.priority, kind: 'priority' })
+      if (this.bucket === '今天') {
+        this.fieldLabel('几点前做完')
+        this.timeWheel('task')
+      }
     }
 
     if (this.sheetType === 'mood') {
@@ -294,13 +316,25 @@ export struct QuickSheet {
     if (this.sheetType === 'habit') {
       this.fieldLabel('频率')
       this.miniChips({ options: PERIOD_OPTIONS, current: this.period, kind: 'period' })
+      if (this.period === '每周') {
+        Text('每周习惯暂不发提醒')
+          .fontSize(10)
+          .fontColor(C.ink3)
+          .margin({ top: 8 })
+          .alignSelf(ItemAlign.Start)
+      }
       this.fieldLabel('提醒时间')
-      this.miniChips({ options: TIME_OPTIONS, current: this.time, kind: 'time' })
+      this.timeWheel('habit')
     }
 
     if (this.sheetType === 'event') {
       this.fieldLabel('时间')
-      this.miniChips({ options: TIME_OPTIONS, current: this.time, kind: 'time' })
+      Text(`日期 ${this.planDate.length > 0 ? this.planDate : today()}`)
+        .fontSize(10)
+        .fontColor(C.ink3)
+        .margin({ top: 6 })
+        .alignSelf(ItemAlign.Start)
+      this.timeWheel('event')
     }
 
     this.fieldLabel(this.sheetType === 'habit' ? '习惯名称' :
@@ -447,6 +481,31 @@ export struct QuickSheet {
       }, (opt: string) => `${group.kind}|${opt}|${group.current}`)
     }
     .width('100%')
+  }
+
+  /** 系统时间滚轮。target 是静态字面量（'task'/'habit'/'event'），按值传参不会失效 */
+  @Builder
+  timeWheel(target: string) {
+    TimePicker({
+      selected: target === 'task'
+        ? new Date(2026, 0, 1, this.taskDueHour, this.taskDueMinute)
+        : new Date(2026, 0, 1, this.clockHour, this.clockMinute)
+    })
+      .useMilitaryTime(true)
+      .backgroundColor(C.paper)
+      .disappearTextStyle({ color: C.ink3, font: { size: 13 } })
+      .textStyle({ color: C.ink2, font: { size: 14 } })
+      .selectedTextStyle({ color: C.ink, font: { size: 16, weight: FontWeight.Bold } })
+      .height(180)
+      .onChange((value: TimePickerResult) => {
+        if (target === 'task') {
+          this.taskDueHour = value.hour;
+          this.taskDueMinute = value.minute;
+        } else {
+          this.clockHour = value.hour;
+          this.clockMinute = value.minute;
+        }
+      })
   }
 
   private titleOf(): string {

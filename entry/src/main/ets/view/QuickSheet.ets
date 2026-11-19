@@ -30,6 +30,16 @@ const PRIORITY_OPTIONS: string[] = ['低', '中', '高'];
 const PERIOD_OPTIONS: string[] = ['每天', '每周'];
 const TIME_OPTIONS: string[] = ['08:30', '09:30', '14:30', '20:30'];
 
+/**
+ * miniChips 必须按引用传参（对象字面量），@Builder 按值传参时 UI 不随状态刷新，
+ * chip 点了没反应。见 AGENTS.md 3.10。
+ */
+interface ChipGroup {
+  options: string[];
+  current: string;
+  kind: string;
+}
+
 @Component
 export struct QuickSheet {
   @StorageLink('uiSheet') @Watch('onSheetChange') sheetType: string = '';
@@ -261,36 +271,36 @@ export struct QuickSheet {
 
     if (this.sheetType === 'growth') {
       this.fieldLabel('大概是（猜的，可不选）')
-      this.miniChips(GROWTH_CATEGORIES, this.growthTag, 'category')
+      this.miniChips({ options: GROWTH_CATEGORIES, current: this.growthTag, kind: 'category' })
     }
 
     if (this.sheetType === 'quote') {
       this.fieldLabel('类型')
-      this.miniChips(QUOTE_TYPES, this.entryType, 'type')
+      this.miniChips({ options: QUOTE_TYPES, current: this.entryType, kind: 'type' })
     }
 
     if (this.sheetType === 'task') {
       this.fieldLabel('什么时候')
-      this.miniChips(BUCKET_OPTIONS, this.bucket, 'bucket')
+      this.miniChips({ options: BUCKET_OPTIONS, current: this.bucket, kind: 'bucket' })
       this.fieldLabel('重要程度')
-      this.miniChips(PRIORITY_OPTIONS, this.priority, 'priority')
+      this.miniChips({ options: PRIORITY_OPTIONS, current: this.priority, kind: 'priority' })
     }
 
     if (this.sheetType === 'mood') {
       this.fieldLabel('心情')
-      this.miniChips(MOOD_LABELS, this.mood, 'mood')
+      this.miniChips({ options: MOOD_LABELS, current: this.mood, kind: 'mood' })
     }
 
     if (this.sheetType === 'habit') {
       this.fieldLabel('频率')
-      this.miniChips(PERIOD_OPTIONS, this.period, 'period')
+      this.miniChips({ options: PERIOD_OPTIONS, current: this.period, kind: 'period' })
       this.fieldLabel('提醒时间')
-      this.miniChips(TIME_OPTIONS, this.time, 'time')
+      this.miniChips({ options: TIME_OPTIONS, current: this.time, kind: 'time' })
     }
 
     if (this.sheetType === 'event') {
       this.fieldLabel('时间')
-      this.miniChips(TIME_OPTIONS, this.time, 'time')
+      this.miniChips({ options: TIME_OPTIONS, current: this.time, kind: 'time' })
     }
 
     this.fieldLabel(this.sheetType === 'habit' ? '习惯名称' :
@@ -363,7 +373,7 @@ export struct QuickSheet {
           })
       }
       this.fieldLabel('标签')
-      this.miniChips(TAG_OPTIONS, this.tag, 'tag')
+      this.miniChips({ options: TAG_OPTIONS, current: this.tag, kind: 'tag' })
     }
 
     if (this.tip.length > 0) {
@@ -421,20 +431,20 @@ export struct QuickSheet {
   }
 
   @Builder
-  miniChips(options: string[], current: string, kind: string) {
+  miniChips(group: ChipGroup) {
     Flex({ wrap: FlexWrap.Wrap }) {
-      ForEach(options, (opt: string) => {
+      ForEach(group.options, (opt: string) => {
         Text(opt)
           .fontSize(10.5)
-          .fontColor(current === opt ? C.paper : C.ink2)
+          .fontColor(group.current === opt ? C.paper : C.ink2)
           .padding({ left: 12, right: 12, top: 6, bottom: 6 })
           .borderRadius(S.pill)
-          .border({ width: 1, color: current === opt ? C.ink : C.rule })
-          .backgroundColor(current === opt ? C.ink : C.paper)
+          .border({ width: 1, color: group.current === opt ? C.ink : C.rule })
+          .backgroundColor(group.current === opt ? C.ink : C.paper)
           .margin({ right: 7, bottom: 7 })
-          .onClick(() => this.pick(kind, opt))
+          .onClick(() => this.pick(group.kind, opt))
       // 选中态 current 必须进 key，否则 ForEach 复用旧组件、高亮永远不变
-      }, (opt: string) => `${kind}|${opt}|${current}`)
+      }, (opt: string) => `${group.kind}|${opt}|${group.current}`)
     }
     .width('100%')
   }

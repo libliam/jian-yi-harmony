@@ -95,7 +95,7 @@
 
 **业务提醒（2026-11-16 接入，`common/BizReminder.ets`）**：待办 / 习惯 / 日程三类已接代理提醒，设计取舍——
 
-- **待办是「汇总提醒」不是每条一条**：快速录入给今日待办的截止时间默认都是当天 18:00，按条发会在同一时刻弹一串通知。汇总只发一条（`todo_summary_reminder_id` 单 key）：最迫近的未来 `dueAt` 时刻 + 剩余数量，新增 / 勾选 / 取消勾选后重算，清空自动取消。调用点：`QuickSheet` 存今日待办后、`TodoView.toggle` 勾选后。
+- **待办是「汇总提醒」不是每条一条**：今日待办默认截止当天 18:00（11-19 起录入弹层可用滚轮自选），按条发会在同一时刻弹一串通知。汇总只发一条（`todo_summary_reminder_id` 单 key）：最迫近的未来 `dueAt` 时刻 + 剩余数量，新增 / 勾选 / 取消勾选后重算，清空自动取消。调用点：`QuickSheet` 存今日待办后、`TodoView.toggle` 勾选后。
 - **习惯是每日 ALARM**（`habit_rem_<habitId>`）：每天 `remindAt` 时刻响；**打卡后当日不会静音**（alarm 型做不到跳过单日，已知取舍）；**每周习惯不发**（表里没有「周几」字段）。
 - **日程是一次性 CALENDAR**（`event_rem_<eventId>`）：`startAt` 时刻响，已过不发。
 - **授权策略**：只在通知**已授权**时静默发布（`isNotificationEnabledSync`），写库路径绝不调 `requestEnableNotification` 弹窗——授权入口仍是今日页「每晚回顾提醒」开关；被拒过就静默跳过。
@@ -109,6 +109,18 @@
 3. 想看到通知真的弹出，三选一：等到 20:30；把手机系统时间调到 20:29 等一分多钟（需先关「自动确定时间」）；或临时把 `REVIEW_HOUR` / `REVIEW_MINUTE` 改成当前时刻 +2 分钟，重新编译安装一次，验完改回 `20` / `30`。
 4. 打开开关后**把 App 从后台划掉**，到点仍应收到 —— 这一步才验证「系统代理」而不是 App 自己弹的。
 5. 杀进程重进，开关应保持开启（Preferences `jianyi_meta` 持久化）。
+
+### 3.10 @Builder 按值传参不刷新：chips 全部「只是看的」（2026-11-19 真机打回）
+
+**现象**：录入弹层里所有单选 chips（类型 / 标签 / 今天长期 / 优先级 / 心情 / 频率 / 时间）点按毫无反应，像纯展示；写库正常、其它控件正常。3.7 修过 ForEach key（key 里带 `current`）并标了「已修未复验」——真机一验就打回：**ForEach key 和 @Builder 传参是两个独立的坑**，key 修对了 builder 也可能压根不重跑。
+
+**根因**：`miniChips(options, current, kind)` 是 @Builder **按值传参**。ArkUI 规定：按值传参的 @Builder 内 UI 不随状态刷新——`pick()` 确实改了 `@State`，但 builder 的渲染闭包只认按引用传参（对象字面量）和内部直接 `this.xxx` 读取这两种依赖，三个独立参数一个都不建立。于是高亮永远停在初始值。
+
+**修法（2026-11-19，`QuickSheet.ets`）**：改成单个对象字面量参数——`interface ChipGroup { options; current; kind }` + `this.miniChips({ options: ..., current: this.bucket, kind: 'bucket' })`，按引用传参后 builder 正常响应状态。
+
+**判别口诀**：@Builder 里要用会变的状态，只有两条安全路——① builder 体内直接读 `this.xxx`（`TodoView.segButton` 的 `this.pane` 一直没坏，就是这个原因）；② 对象字面量按引用传参。独立参数只放**静态字面量**（`timeWheel('task')` 这种没问题），状态变量当独立参数传 = 必坏。
+
+**排查顺序**：自绘控件点了没反应 → 先看它在不在 @Builder 里、状态是不是当参数传的 → 再查 ForEach key（3.7）→ 最后才怀疑数据层。
 
 ### 3.5 应用图标：分层资源与两处引用（2026-11-13）
 

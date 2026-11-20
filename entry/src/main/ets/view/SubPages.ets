@@ -35,6 +35,8 @@ export struct SubPages {
 
   @State habits: HabitView[] = [];
   @State heat: number[] = [];
+  @State habitMenuShown: boolean = false;
+  @State menuHabit: HabitView | null = null;
   @State weekMoods: number[] = [0, 0, 0, 0, 0, 0, 0];
   @State moodRows: MoodRow[] = [];
   @State moodLevel: number = 0;
@@ -142,14 +144,24 @@ export struct SubPages {
     await this.loadHabits();
   }
 
-  /** 长按习惯行的菜单：h 的字段都是静态值，可作独立参数（AGENTS.md 3.10） */
+  /** 长按习惯行的菜单：无参 @Builder，读 this.menuHabit */
   @Builder
-  habitMenu(h: HabitView) {
+  habitMenu() {
     Menu() {
       MenuItem({ content: '编辑' })
-        .onClick(() => openEdit('habit', h.id))
+        .onClick(() => {
+          const h: HabitView | null = this.menuHabit;
+          if (h !== null) {
+            openEdit('habit', h.id);
+          }
+        })
       MenuItem({ content: '删除' })
-        .onClick(() => this.confirmDeleteHabit(h))
+        .onClick(() => {
+          const h: HabitView | null = this.menuHabit;
+          if (h !== null) {
+            this.confirmDeleteHabit(h);
+          }
+        })
     }
   }
 
@@ -377,10 +389,20 @@ export struct SubPages {
         .width('100%')
         .padding({ top: 16, bottom: 16 })
         .border({ width: { bottom: 1 }, color: C.ruleSoft })
-        // 长按行呼出编辑 / 删除菜单
-        .bindContextMenu((): void => {
-          this.habitMenu(h)
-        }, ResponseType.LongPress)
+        // 长按弹菜单：显式手势置状态 + bindContextMenu12 的 isShown 受控形式
+        .gesture(LongPressGesture()
+          .onAction(() => {
+            this.menuHabit = h;
+            this.habitMenuShown = true;
+          }))
+        .bindContextMenu(
+          this.habitMenuShown && this.menuHabit !== null && this.menuHabit.id === h.id,
+          this.habitMenu,
+          {
+            onDisappear: (): void => {
+              this.habitMenuShown = false;
+            }
+          })
       }, (h: HabitView) => `${h.id}|${h.done}|${h.streak}`)
     }
 

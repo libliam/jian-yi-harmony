@@ -122,6 +122,21 @@
 
 **排查顺序**：自绘控件点了没反应 → 先看它在不在 @Builder 里、状态是不是当参数传的 → 再查 ForEach key（3.7）→ 最后才怀疑数据层。
 
+### 3.11 bindContextMenu 8+ 的 LongPress 重载真机不触发（2026-11-20 真机定位）
+
+**现象**：待办 / 习惯 / 日程三处长按菜单在 Mate 60 Pro（API 26）真机上完全无反应——按住 1 秒以上不弹菜单，HiLog 无报错。写库、其它交互全部正常。
+
+**排查过程（一次构建三信号定位）**：先在真机用 `uitest uiInput longClick` 精确注入排除落点因素（两轮 verify_ui 的触摸日志显示命中节点是 Scroll 而非行，证据不干净）；随后一个构建里放三个候选方案分别验证——① 8+ 老重载 + 规范 @Builder 引用：**失败**（连长按识别器都不注册）；② 显式 `LongPressGesture` + `bindContextMenu12` 的 isShown 受控形式：**成功**（原生菜单 + 编辑预填全通）；③ `LongPressGesture` + `bindPopup`：**成功**。菜单子窗机制本身没坏，坏的是 8+ 重载的长按触发。
+
+**修法（2026-11-20，三视图统一）**：`LongPressGesture().onAction()` 记下长按的行（`this.menuTodo = item` + `this.todoMenuShown = true`），配 `.bindContextMenu(受控布尔表达式, this.rowMenu, { onDisappear: 复位 })`。要点：
+
+- content 用**无参 @Builder 方法引用**，builder 体内读 `this.menuTodo`（3.10 安全路径①），`onDisappear` 里把 shown 复位 false。
+- 受控表达式要带行 id 守卫：`this.todoMenuShown && this.menuTodo !== null && this.menuTodo.id === item.id`，多行互不串台。
+- API 12+，不破 24 下限；`bindContextMenuByResponseType`（26+）别用。
+- 规范引用形式不能带参数，所以「长按的是哪一行」必须靠手势回调写进 @State，菜单项 onClick 再读出来。
+
+**真机调试工具箱（不烧 verify_ui 次数）**：`hdc shell uitest uiInput click/longClick/drag/keyEvent` 精确注入；`uitest dumpLayout -p` 拉节点树拿坐标与文本（比截图识别稳）；`uitest screenCap` + Pillow diff 判断界面是否变化；`devecocli device sqlite3 <设备db路径>` 直查真机库验证软删除。注意 `devecocli device app start` 需 `--ability EntryAbility`；锁屏要先 `device wake` + `device unlock`。
+
 ### 3.5 应用图标：分层资源与两处引用（2026-11-13）
 
 HarmonyOS 的桌面图标是**分层资源**，不是一张图：

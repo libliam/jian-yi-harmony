@@ -21,6 +21,8 @@ export struct PlanView {
   @State selected: string = '';
   @State events: EventRow[] = [];
   @State rangeEvents: EventRow[] = [];
+  @State slotMenuShown: boolean = false;
+  @State menuEvent: EventRow | null = null;
 
   async aboutToAppear(): Promise<void> {
     await this.load();
@@ -46,14 +48,24 @@ export struct PlanView {
     this.events = await listEventsByDate(date);
   }
 
-  /** 长按日程的菜单：e 的字段都是静态值，可作独立参数（AGENTS.md 3.10） */
+  /** 长按日程的菜单：无参 @Builder，读 this.menuEvent */
   @Builder
-  slotMenu(e: EventRow) {
+  slotMenu() {
     Menu() {
       MenuItem({ content: '编辑' })
-        .onClick(() => openEdit('event', e.id))
+        .onClick(() => {
+          const ev: EventRow | null = this.menuEvent;
+          if (ev !== null) {
+            openEdit('event', ev.id);
+          }
+        })
       MenuItem({ content: '删除' })
-        .onClick(() => this.confirmDeleteEvent(e))
+        .onClick(() => {
+          const ev: EventRow | null = this.menuEvent;
+          if (ev !== null) {
+            this.confirmDeleteEvent(ev);
+          }
+        })
     }
   }
 
@@ -272,9 +284,20 @@ export struct PlanView {
     }
     .width('100%')
     .alignItems(VerticalAlign.Top)
-    // 长按呼出编辑 / 删除菜单
-    .bindContextMenu((): void => {
-      this.slotMenu(e)
-    }, ResponseType.LongPress)
+    // 长按弹菜单：显式手势置状态 + bindContextMenu12 的 isShown 受控形式
+    // （bindContextMenu8+ 的 ResponseType.LongPress 重载在 API 26 真机上不触发，见 AGENTS.md 3.11）
+    .gesture(LongPressGesture()
+      .onAction(() => {
+        this.menuEvent = e;
+        this.slotMenuShown = true;
+      }))
+    .bindContextMenu(
+      this.slotMenuShown && this.menuEvent !== null && this.menuEvent.id === e.id,
+      this.slotMenu,
+      {
+        onDisappear: (): void => {
+          this.slotMenuShown = false;
+        }
+      })
   }
 }

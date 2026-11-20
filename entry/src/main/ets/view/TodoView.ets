@@ -24,6 +24,8 @@ export struct TodoView {
   @State thoughts: ThoughtRow[] = [];
   @State todayStat: TodoStat = { total: 0, done: 0, overdue: 0 };
   @State laterStat: TodoStat = { total: 0, done: 0, overdue: 0 };
+  @State menuTodo: TodoRow | null = null;
+  @State todoMenuShown: boolean = false;
 
   async aboutToAppear(): Promise<void> {
     await this.load();
@@ -259,20 +261,42 @@ export struct TodoView {
     .padding({ top: 14, bottom: 14 })
     .border({ width: { bottom: 1 }, color: C.ruleSoft })
     .alignItems(VerticalAlign.Top)
-    // 长按行呼出编辑 / 删除菜单
-    .bindContextMenu((): void => {
-      this.rowMenu(item)
-    }, ResponseType.LongPress)
+    // 长按先记下是哪一行；菜单内容读 this.menuTodo（AGENTS.md 3.10 安全路径①）
+    .gesture(LongPressGesture()
+      .onAction(() => {
+        this.menuTodo = item;
+        this.todoMenuShown = true;
+      }))
+    // bindContextMenu8+ 的 ResponseType.LongPress 重载在 API 26 真机上不触发，
+    // 统一改用 bindContextMenu12 的 isShown 受控形式（真机已验证，见 AGENTS.md 3.11）
+    .bindContextMenu(
+      this.todoMenuShown && this.menuTodo !== null && this.menuTodo.id === item.id,
+      this.rowMenu,
+      {
+        onDisappear: (): void => {
+          this.todoMenuShown = false;
+        }
+      })
   }
 
-  /** 长按行的菜单：item 字段都是静态值，可作独立参数（AGENTS.md 3.10） */
+  /** 长按行的菜单：无参 @Builder，读 this.menuTodo */
   @Builder
-  rowMenu(item: TodoRow) {
+  rowMenu() {
     Menu() {
       MenuItem({ content: '编辑' })
-        .onClick(() => openEdit('task', item.id))
+        .onClick(() => {
+          const item: TodoRow | null = this.menuTodo;
+          if (item !== null) {
+            openEdit('task', item.id);
+          }
+        })
       MenuItem({ content: '删除' })
-        .onClick(() => this.confirmDelete(item))
+        .onClick(() => {
+          const item: TodoRow | null = this.menuTodo;
+          if (item !== null) {
+            this.confirmDelete(item);
+          }
+        })
     }
   }
 

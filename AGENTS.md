@@ -137,6 +137,20 @@
 
 **真机调试工具箱（不烧 verify_ui 次数）**：`hdc shell uitest uiInput click/longClick/drag/keyEvent` 精确注入；`uitest dumpLayout -p` 拉节点树拿坐标与文本（比截图识别稳）；`uitest screenCap` + Pillow diff 判断界面是否变化；`devecocli device sqlite3 <设备db路径>` 直查真机库验证软删除。注意 `devecocli device app start` 需 `--ability EntryAbility`；锁屏要先 `device wake` + `device unlock`。
 
+### 3.12 ArkTS 编译错误速查：throw / 枚举大小写 / build 与 @Builder 作用域 / 签名密钥（2026-11-20 沉淀）
+
+首批真编译集中暴露的几类错误与修法，再遇到直接按表处理：
+
+- **`arkts-limited-throw`**：`throw` 只能抛 `Error` 型。`catch (err)` 里不能直接 `throw err`（err 是任意类型）；写 `const e = err as BusinessError; throw new Error(\`...：${e.message}\`)`，`BusinessError` 从 `@kit.BasicServicesKit` 导入。
+- **枚举成员大小写以 SDK `.d.ts` 为准**：`TextAlign.Justify` ❌ → `TextAlign.JUSTIFY` ✅（10505001 报错时编译器会提示正确名，照抄即可）。
+- **`build()` 与 `@Builder` 体内都禁止局部变量声明**（10905210 / 10905209，编译器实测拒绝，不是风格建议）：
+  - 修法模式：**取值逻辑抽成私有普通方法**（普通方法内可以声明局部变量），UI 里调 `this.xxx()` 拿值；可空状态变量的收窄在方法内部完成（`SubPages.entryContent()` / `PlanView.slotTimeText()` / `ReaderView.currentPercent()` 模式）。
+  - 别再写「@Builder 开头 `const e = this.entry` 收窄可空」——必被拒；也别指望 `if (this.x !== null)` 之后直接 `this.x.y` 的窄化能跨过 UI 转换。
+  - `build()` 的整段条件内容抽成 `@Builder` 方法再调用（`ReaderView.readingCard()` 模式）。
+- **编译错误是分批暴露的**：修完报出来的 4 条，重新 build 又冒出 2 条同类。同类错误一轮修完后，先 `arkts_check` 传**整个工程目录**扫一遍，把同类违反一次抓全，再 build；比「build → 修 → build」逐轮循环快。
+- **签名配置是密钥，禁止入库**：`.sign/sign-config.json5` 含 `keyPassword` / `storePassword`。`.gitignore` 已加 `/.sign` 与 `/.cache`；该文件曾被暂存过，**提交前必须 `git status` 检查暂存区**，发现密钥文件用 `git rm --cached` 移出，文件保留本地（不影响 Studio 签名）。
+- **PowerShell `Add-Content` 追加 `.gitignore` 的坑**：原文件末行没有换行符时，追加内容会拼进最后一行（出现过 `/.appanalyzer/.sign` 连成一行导致规则静默失效）。追加后逐行查看验证再提交。
+
 ### 3.5 应用图标：分层资源与两处引用（2026-11-13）
 
 HarmonyOS 的桌面图标是**分层资源**，不是一张图：

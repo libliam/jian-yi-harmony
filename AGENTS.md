@@ -100,7 +100,7 @@
 - **日程是一次性 CALENDAR**（`event_rem_<eventId>`）：`startAt` 时刻响，已过不发。
 - **授权策略**：只在通知**已授权**时静默发布（`isNotificationEnabledSync`），写库路径绝不调 `requestEnableNotification` 弹窗——授权入口仍是今日页「每晚回顾提醒」开关；被拒过就静默跳过。
 - reminderId 映射存 Preferences `jianyi_meta`，不动表结构（P1 说的「字段已就绪」即指无需 DB v3）。
-- 待办 / 习惯 / 日程目前**没有删除 UI**（`removeTodo` / `removeHabit` / `removeEvent` 仓库接口在但无人调用），所以「删除时取消提醒」的钩子等删除 UI 落地时再接，别漏。
+- **删除即取消（2026-11-19 已接）**：三个视图都有长按菜单（编辑 / 删除），删除前 `showAlertDialog` 确认；`TodoView.deleteRow` → `syncTodoSummaryReminder` 重算汇总，`SubPages.deleteHabit` → `cancelHabitReminder`，`PlanView.deleteEvent` → `cancelEventReminder`，均 fire-and-forget + `.catch()`。编辑走 `openEdit(kind, id)`（Bus `EDIT_KEY`），保存后提醒「先取消再重发」（BizReminder 内部处理，改期到过去旧提醒同样被取消）。
 
 **真机怎么验证（2026-11-13）**：代理提醒由系统到点发出，不在 App 内弹窗，光看界面看不出来。按顺序做：
 
@@ -218,7 +218,7 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
 
-**下一步优先级**：P1 微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出、待办/习惯/日程的删除 UI（落地时记得接「删除取消提醒」钩子，见 3.4）；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+**下一步优先级**：P1 微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出、日程日期选择（`uiPlanDate` 仍无人写入，日程恒为今天）；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 
 ## 5. 给 Agent 的工作准则

@@ -5,11 +5,13 @@
  * 电子书正文属于路线图第 6 步（Reader Kit），这里只留位置说明。
  */
 
+import { common } from '@kit.AbilityKit';
 import { HabitRow, MoodRow, EntryRow } from '../db/Models';
-import { listHabits, listDoneDates, habitStreak, checkIn } from '../db/HabitRepo';
+import { listHabits, listDoneDates, habitStreak, checkIn, removeHabit } from '../db/HabitRepo';
 import { latestMood, listMoods, addMood } from '../db/MoodRepo';
 import { getEntry, toggleFavorite, removeEntry } from '../db/EntryRepo';
-import { bumpRevision, closeSub, openSheet } from '../common/Bus';
+import { bumpRevision, closeSub, openSheet, openEdit } from '../common/Bus';
+import { cancelHabitReminder } from '../common/BizReminder';
 import { C, S, SERIF, MOOD_LABELS } from '../common/Theme';
 import {
   DayCell, today, currentWeek, lastSevenDays, lastNDays,
@@ -136,6 +138,47 @@ export struct SubPages {
 
   private async toggleCheck(h: HabitView): Promise<void> {
     await checkIn(h.id, today(), !h.done);
+    bumpRevision();
+    await this.loadHabits();
+  }
+
+  /** 长按习惯行的菜单：h 的字段都是静态值，可作独立参数（AGENTS.md 3.10） */
+  @Builder
+  habitMenu(h: HabitView) {
+    Menu() {
+      MenuItem({ content: '编辑' })
+        .onClick(() => openEdit('habit', h.id))
+      MenuItem({ content: '删除' })
+        .onClick(() => this.confirmDeleteHabit(h))
+    }
+  }
+
+  private confirmDeleteHabit(h: HabitView): void {
+    this.getUIContext().showAlertDialog({
+      title: '删除这个习惯？',
+      message: `「${h.name}」和它的打卡记录都会一并归档，删掉就找不回来了。`,
+      autoCancel: true,
+      alignment: DialogAlignment.Bottom,
+      primaryButton: {
+        value: '再想想',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '删除',
+        fontColor: C.cinnabar,
+        action: () => {
+          this.deleteHabit(h);
+        }
+      }
+    });
+  }
+
+  private async deleteHabit(h: HabitView): Promise<void> {
+    await removeHabit(h.id);
+    // 删除即取消：每日提醒一并撤掉，通知失败不阻断写库
+    cancelHabitReminder(getContext(this) as common.Context, h.id).catch(() => {
+    });
     bumpRevision();
     await this.loadHabits();
   }
@@ -334,7 +377,11 @@ export struct SubPages {
         .width('100%')
         .padding({ top: 16, bottom: 16 })
         .border({ width: { bottom: 1 }, color: C.ruleSoft })
-      }, (h: HabitView) => h.id)
+        // 长按行呼出编辑 / 删除菜单
+        .bindContextMenu((): void => {
+          this.habitMenu(h)
+        }, ResponseType.LongPress)
+      }, (h: HabitView) => `${h.id}|${h.done}|${h.streak}`)
     }
 
     Button('＋　新建一个习惯')

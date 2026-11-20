@@ -5,9 +5,11 @@
  * 保证「在周三加一段安排」不会落到今天去。
  */
 
+import { common } from '@kit.AbilityKit';
 import { EventRow } from '../db/Models';
-import { listEventsByDate, listEventsInRange } from '../db/EventRepo';
-import { setPlanDate, openSheet } from '../common/Bus';
+import { listEventsByDate, listEventsInRange, removeEvent } from '../db/EventRepo';
+import { setPlanDate, openSheet, openEdit, bumpRevision } from '../common/Bus';
+import { cancelEventReminder } from '../common/BizReminder';
 import { C, S, SERIF } from '../common/Theme';
 import { DayCell, currentWeek, today, formatTime } from '../common/DateUtil';
 import { PageHead } from './Parts';
@@ -42,6 +44,47 @@ export struct PlanView {
     this.selected = date;
     setPlanDate(date);
     this.events = await listEventsByDate(date);
+  }
+
+  /** 长按日程的菜单：e 的字段都是静态值，可作独立参数（AGENTS.md 3.10） */
+  @Builder
+  slotMenu(e: EventRow) {
+    Menu() {
+      MenuItem({ content: '编辑' })
+        .onClick(() => openEdit('event', e.id))
+      MenuItem({ content: '删除' })
+        .onClick(() => this.confirmDeleteEvent(e))
+    }
+  }
+
+  private confirmDeleteEvent(e: EventRow): void {
+    this.getUIContext().showAlertDialog({
+      title: '删掉这段安排？',
+      message: `「${e.title}」删掉就找不回来了。`,
+      autoCancel: true,
+      alignment: DialogAlignment.Bottom,
+      primaryButton: {
+        value: '再想想',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '删除',
+        fontColor: C.cinnabar,
+        action: () => {
+          this.deleteEvent(e);
+        }
+      }
+    });
+  }
+
+  private async deleteEvent(e: EventRow): Promise<void> {
+    await removeEvent(e.id);
+    // 删除即取消：一次性提醒一并撤掉，通知失败不阻断写库
+    cancelEventReminder(getContext(this) as common.Context, e.id).catch(() => {
+    });
+    bumpRevision();
+    await this.load();
   }
 
   private hasEvent(date: string): boolean {
@@ -229,5 +272,9 @@ export struct PlanView {
     }
     .width('100%')
     .alignItems(VerticalAlign.Top)
+    // 长按呼出编辑 / 删除菜单
+    .bindContextMenu((): void => {
+      this.slotMenu(e)
+    }, ResponseType.LongPress)
   }
 }

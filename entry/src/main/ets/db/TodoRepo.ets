@@ -83,6 +83,36 @@ export async function setTodoDone(id: string, done: boolean): Promise<void> {
   await db().update(row, predicates);
 }
 
+/** 编辑用；不存在（含已软删）返回 null */
+export async function getTodo(id: string): Promise<TodoRow | null> {
+  const predicates = new relationalStore.RdbPredicates(TABLE);
+  predicates.equalTo('id', id).isNull('deleted_at');
+  const rs: relationalStore.ResultSet = await db().query(predicates);
+  const list: TodoRow[] = collect(rs);
+  return list.length > 0 ? list[0] : null;
+}
+
+/** 编辑：只动这几列，done / done_at 原样保留 */
+export async function updateTodo(
+  id: string,
+  title: string,
+  bucket: TodoBucket,
+  priority: Priority,
+  dueAt: number | null
+): Promise<void> {
+  const now: number = Date.now();
+  const row: relationalStore.ValuesBucket = {
+    'title': title,
+    'bucket': bucket,
+    'priority': priority,
+    'due_at': dueAt,
+    'updated_at': now
+  };
+  const predicates = new relationalStore.RdbPredicates(TABLE);
+  predicates.equalTo('id', id);
+  await db().update(row, predicates);
+}
+
 export async function removeTodo(id: string): Promise<void> {
   const now: number = Date.now();
   const row: relationalStore.ValuesBucket = { 'deleted_at': now, 'updated_at': now };

@@ -18,6 +18,7 @@ export const REV_KEY: string = 'dbRevision';
 export const TAB_KEY: string = 'uiTab';
 export const PANE_KEY: string = 'uiTodoPane';
 export const SHEET_KEY: string = 'uiSheet';
+export const EDIT_KEY: string = 'uiEditId';
 export const SUB_KEY: string = 'uiSub';
 export const QUOTE_KEY: string = 'uiQuoteId';
 export const PLAN_DATE_KEY: string = 'uiPlanDate';
@@ -60,6 +61,7 @@ export function ensureUiState(): void {
   AppStorage.setOrCreate<number>(TAB_KEY, 0);
   AppStorage.setOrCreate<string>(PANE_KEY, 'today');
   AppStorage.setOrCreate<string>(SHEET_KEY, '');
+  AppStorage.setOrCreate<string>(EDIT_KEY, '');
   AppStorage.setOrCreate<string>(SUB_KEY, '');
   AppStorage.setOrCreate<string>(QUOTE_KEY, '');
   AppStorage.setOrCreate<string>(PLAN_DATE_KEY, '');
@@ -100,13 +102,24 @@ export function closeGrowth(): void {
   popPage();
 }
 
-/** sheet 类型：more / quote / task / think / mood / habit / event；空串表示关闭 */
+/** sheet 类型：more / quote / task / think / mood / habit / event；空串表示关闭。新建入口，先清编辑目标 */
 export function openSheet(type: string): void {
+  AppStorage.setOrCreate<string>(EDIT_KEY, '');
   AppStorage.setOrCreate<string>(SHEET_KEY, type);
+}
+
+/**
+ * 编辑模式打开录入弹层：EDIT_KEY 非空即编辑已有记录，空即新建。
+ * 必须先写 EDIT_KEY 再写 SHEET_KEY，QuickSheet 挂载时才能读到。
+ */
+export function openEdit(kind: string, id: string): void {
+  AppStorage.setOrCreate<string>(EDIT_KEY, id);
+  AppStorage.setOrCreate<string>(SHEET_KEY, kind);
 }
 
 export function closeSheet(): void {
   AppStorage.setOrCreate<string>(SHEET_KEY, '');
+  AppStorage.setOrCreate<string>(EDIT_KEY, '');
 }
 
 /**

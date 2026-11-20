@@ -77,6 +77,38 @@ export async function removeEvent(id: string): Promise<void> {
   await db().update(row, predicates);
 }
 
+/** 编辑用；不存在（含已软删）返回 null */
+export async function getEvent(id: string): Promise<EventRow | null> {
+  const predicates = new relationalStore.RdbPredicates(TABLE);
+  predicates.equalTo('id', id).isNull('deleted_at');
+  const rs: relationalStore.ResultSet = await db().query(predicates);
+  let row: EventRow | null = null;
+  if (rs.goToNextRow()) {
+    row = mapEvent(rs);
+  }
+  rs.close();
+  return row;
+}
+
+/** 编辑：内容 / 日期 / 开始时间；日期变了提醒跟着重算（调用方负责先取消再重发） */
+export async function updateEvent(
+  id: string,
+  title: string,
+  date: string,
+  startAt: number
+): Promise<void> {
+  const now: number = Date.now();
+  const row: relationalStore.ValuesBucket = {
+    'title': title,
+    'date': date,
+    'start_at': startAt,
+    'updated_at': now
+  };
+  const predicates = new relationalStore.RdbPredicates(TABLE);
+  predicates.equalTo('id', id);
+  await db().update(row, predicates);
+}
+
 /**
  * 系统日历同步时用：外部日程要按 source + 外部 id 去重，
  * 否则每次同步都会把同一场会议再插一遍。

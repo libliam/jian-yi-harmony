@@ -158,6 +158,49 @@ export async function removeHabit(id: string): Promise<void> {
   await db().update(row, predicates);
 }
 
+/** 编辑用；不存在（含已软删）返回 null */
+export async function getHabit(id: string): Promise<HabitRow | null> {
+  const predicates = new relationalStore.RdbPredicates(HABIT);
+  predicates.equalTo('id', id).isNull('deleted_at');
+  const rs: relationalStore.ResultSet = await db().query(predicates);
+  let row: HabitRow | null = null;
+  if (rs.goToNextRow()) {
+    row = {
+      id: str(rs, 'id'),
+      name: str(rs, 'name'),
+      icon: strOrNull(rs, 'icon'),
+      period: str(rs, 'period') as HabitPeriod,
+      targetTimes: num(rs, 'target_times'),
+      remindAt: strOrNull(rs, 'remind_at'),
+      archived: num(rs, 'archived'),
+      createdAt: num(rs, 'created_at'),
+      updatedAt: num(rs, 'updated_at'),
+      deletedAt: null
+    };
+  }
+  rs.close();
+  return row;
+}
+
+/** 编辑：名称 / 频率 / 提醒时间；打卡记录与连续天数不受影响 */
+export async function updateHabit(
+  id: string,
+  name: string,
+  period: HabitPeriod,
+  remindAt: string | null
+): Promise<void> {
+  const now: number = Date.now();
+  const row: relationalStore.ValuesBucket = {
+    'name': name,
+    'period': period,
+    'remind_at': remindAt,
+    'updated_at': now
+  };
+  const predicates = new relationalStore.RdbPredicates(HABIT);
+  predicates.equalTo('id', id);
+  await db().update(row, predicates);
+}
+
 function parseDay(day: string): Date {
   const parts: string[] = day.split('-');
   return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));

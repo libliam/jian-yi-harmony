@@ -11,6 +11,8 @@
  *    授权入口是今日页「每晚回顾提醒」开关。用户拒绝过授权，这里就静默跳过，不反复打扰。
  * 3. 习惯是每日 ALARM：打卡后当日不会静音（alarm 型做不到跳过单日）；每周习惯没有「周几」字段，不发。
  * 4. 通知失败绝不阻断写库：异常在本模块内部消化，只记日志；调用方再 .catch() 兜底即可。
+ * 5. 删除即取消：removeHabit / removeEvent 后必须调 cancelHabitReminder / cancelEventReminder；
+ *    编辑走「先取消再重发」，时间改到过去时旧提醒同样被取消。
  *
  * reminderId 映射落在 Preferences（jianyi_meta），与 DB 行不绑表结构：
  * todo_summary_reminder_id（汇总单条）/ habit_rem_<habitId> / event_rem_<eventId>。
@@ -82,6 +84,29 @@ function notificationIdOf(key: string, salt: number): number {
     hash = (hash * 31 + key.charCodeAt(i)) % 1000000007;
   }
   return 2002 + hash % 20000;
+}
+
+/** 删除习惯 / 日程时按 Preferences key 取消对应提醒。函数永不抛错。 */
+async function cancelByKey(context: common.Context, key: string): Promise<void> {
+  try {
+    const p: preferences.Preferences = await pref(context);
+    const stored: preferences.ValueType = p.getSync(key, -1);
+    await cancelQuietly(Number(stored));
+    await p.delete(key);
+    await p.flush();
+  } catch (err) {
+    logError('cancelReminder by key', err as BusinessError);
+  }
+}
+
+/** 删除习惯时取消其每日提醒（删除 UI 落地后由视图调用）。函数永不抛错。 */
+export async function cancelHabitReminder(context: common.Context, habitId: string): Promise<void> {
+  await cancelByKey(context, `habit_rem_${habitId}`);
+}
+
+/** 删除日程时取消其一次性提醒。函数永不抛错。 */
+export async function cancelEventReminder(context: common.Context, eventId: string): Promise<void> {
+  await cancelByKey(context, `event_rem_${eventId}`);
 }
 
 /**
@@ -196,14 +221,18 @@ export async function publishEventReminder(
   title: string,
   startAt: number
 ): Promise<void> {
-  if (startAt <= Date.now() || !notificationEnabled()) {
-    return;
-  }
   const key: string = `event_rem_${eventId}`;
   try {
+    // 先取消旧的再决定是否重发：编辑把时间改到过去 / 通知被关时，旧提醒也必须取消
     const p: preferences.Preferences = await pref(context);
     const stored: preferences.ValueType = p.getSync(key, -1);
     await cancelQuietly(Number(stored));
+    await p.delete(key);
+    await p.flush();
+
+    if (startAt <= Date.now() || !notificationEnabled()) {
+      return;
+    }
 
     const d: Date = new Date(startAt);
     const dateTime: reminderAgentManager.LocalDateTime = {

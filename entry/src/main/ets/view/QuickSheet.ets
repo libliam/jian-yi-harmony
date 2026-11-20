@@ -7,13 +7,13 @@
 
 import { common } from '@kit.AbilityKit';
 import { addEntry } from '../db/EntryRepo';
-import { addTodo } from '../db/TodoRepo';
+import { addTodo, getTodo, updateTodo } from '../db/TodoRepo';
 import { addThought } from '../db/ThoughtRepo';
 import { addMood } from '../db/MoodRepo';
-import { addHabit } from '../db/HabitRepo';
-import { addEvent } from '../db/EventRepo';
+import { addHabit, getHabit, updateHabit } from '../db/HabitRepo';
+import { addEvent, getEvent, updateEvent } from '../db/EventRepo';
 import { addGrowth } from '../db/GrowthRepo';
-import { EntryType, TodoBucket, Priority, HabitPeriod } from '../db/Models';
+import { EntryType, TodoRow, HabitRow, EventRow, TodoBucket, Priority, HabitPeriod } from '../db/Models';
 import { syncTodoSummaryReminder, syncHabitReminder, publishEventReminder } from '../common/BizReminder';
 import {
   GROWTH_CATEGORIES, GROWTH_UNCATEGORIZED, guessCategory, parseAmount,
@@ -46,6 +46,7 @@ interface ChipGroup {
 @Component
 export struct QuickSheet {
   @StorageLink('uiSheet') @Watch('onSheetChange') sheetType: string = '';
+  @StorageLink('uiEditId') editId: string = '';
   @StorageLink('uiTodoPane') pane: string = 'today';
   @StorageLink('uiPlanDate') planDate: string = '';
 
@@ -62,6 +63,10 @@ export struct QuickSheet {
   @State growthTag: string = GROWTH_UNCATEGORIZED;
   @State growthTagTouched: boolean = false;
   @State amountHint: string = '';
+  /** 编辑模式：弹层挂载后先异步取记录回填，取完才渲染表单，滚轮才能停在回填值上 */
+  @State editLoaded: boolean = true;
+  /** 编辑日程时记录原日期；空串 = 新建 */
+  @State editEventDate: string = '';
   // TimePicker 滚轮自己管 UI，这里用普通字段存值就够，不触发重渲染
   private taskDueHour: number = 18;
   private taskDueMinute: number = 0;
@@ -72,6 +77,55 @@ export struct QuickSheet {
     if (this.sheetType.length > 0) {
       this.reset();
     }
+  }
+
+  async aboutToAppear(): Promise<void> {
+    await this.prefillForEdit();
+  }
+
+  /** 编辑模式回填：从库里取记录填进表单。取不到（已删）就按新建处理 */
+  private async prefillForEdit(): Promise<void> {
+    if (this.editId.length === 0) {
+      return;
+    }
+    this.editLoaded = false;
+    if (this.sheetType === 'task') {
+      const row: TodoRow | null = await getTodo(this.editId);
+      if (row !== null) {
+        this.content = row.title;
+        this.bucket = row.bucket === TodoBucket.Later ? '长期' : '今天';
+        this.priority = row.priority === Priority.High ? '高' :
+          row.priority === Priority.Low ? '低' : '中';
+        if (row.dueAt !== null) {
+          const d: Date = new Date(row.dueAt);
+          this.taskDueHour = d.getHours();
+          this.taskDueMinute = d.getMinutes();
+        }
+      }
+    } else if (this.sheetType === 'habit') {
+      const row: HabitRow | null = await getHabit(this.editId);
+      if (row !== null) {
+        this.content = row.name;
+        this.period = row.period === HabitPeriod.Weekly ? '每周' : '每天';
+        if (row.remindAt !== null && row.remindAt.length > 0) {
+          const parts: string[] = row.remindAt.split(':');
+          if (parts.length === 2) {
+            this.clockHour = Number(parts[0]);
+            this.clockMinute = Number(parts[1]);
+          }
+        }
+      }
+    } else if (this.sheetType === 'event') {
+      const row: EventRow | null = await getEvent(this.editId);
+      if (row !== null) {
+        this.content = row.title;
+        const d: Date = new Date(row.startAt);
+        this.clockHour = d.getHours();
+        this.clockMinute = d.getMinutes();
+        this.editEventDate = row.date;
+      }
+    }
+    this.editLoaded = true;
   }
 
   private reset(): void {
@@ -92,6 +146,7 @@ export struct QuickSheet {
     this.growthTag = GROWTH_UNCATEGORIZED;
     this.growthTagTouched = false;
     this.amountHint = '';
+    this.editEventDate = '';
   }
 
   private pick(kind: string, value: string): void {
@@ -117,6 +172,14 @@ export struct QuickSheet {
     const text: string = this.content.trim();
     if (text.length === 0) {
       this.tip = '先写点什么吧，一句话也算。';
+      return;
+    }
+
+    // 编辑模式：改已有记录，提醒跟着重算（先取消再重发都在 BizReminder 内处理）
+    if (this.editId.length > 0) {
+      await this.saveEdit(text);
+      bumpRevision();
+      closeSheet();
       return;
     }
 
@@ -174,6 +237,46 @@ export struct QuickSheet {
     closeSheet();
   }
 
+  private async saveEdit(text: string): Promise<void> {
+    const context: common.Context = getContext(this) as common.Context;
+    if (this.sheetType === 'task') {
+      const b: TodoBucket = this.bucket === '长期' ? TodoBucket.Later : TodoBucket.Today;
+      let p: Priority = Priority.Mid;
+      if (this.priority === '高') {
+        p = Priority.High;
+      } else if (this.priority === '低') {
+        p = Priority.Low;
+      }
+      await updateTodo(this.editId, text, b, p,
+        b === TodoBucket.Today ? atToday(this.taskDueHour, this.taskDueMinute) : null);
+      syncTodoSummaryReminder(context).catch(() => {
+      });
+    } else if (this.sheetType === 'habit') {
+      const period: HabitPeriod = this.period === '每周' ? HabitPeriod.Weekly : HabitPeriod.Daily;
+      const remindAt: string = `${pad2(this.clockHour)}:${pad2(this.clockMinute)}`;
+      await updateHabit(this.editId, text, period, remindAt);
+      syncHabitReminder(context, this.editId, text, period, remindAt).catch(() => {
+      });
+    } else if (this.sheetType === 'event') {
+      const date: string = this.eventDateText().length > 0 ? this.eventDateText() : today();
+      const startAt: number = atDay(date, this.clockHour, this.clockMinute);
+      await updateEvent(this.editId, text, date, startAt);
+      publishEventReminder(context, this.editId, text, startAt).catch(() => {
+      });
+    }
+  }
+
+  /** 表单里显示的日期：编辑用记录原日期，新建用计划页选中日（否则今天） */
+  private eventDateText(): string {
+    if (this.editEventDate.length > 0) {
+      return this.editEventDate;
+    }
+    if (this.planDate.length > 0) {
+      return this.planDate;
+    }
+    return today();
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       // 遮罩
@@ -196,6 +299,16 @@ export struct QuickSheet {
           Column() {
             if (this.sheetType === 'more') {
               this.morePane()
+            } else if (!this.editLoaded) {
+              // 编辑回填完成前先不渲染表单，避免滚轮停在默认值上
+              Column() {
+                LoadingProgress()
+                  .width(22)
+                  .height(22)
+                  .color(C.ink3)
+              }
+              .width('100%')
+              .padding({ top: 34, bottom: 34 })
             } else {
               this.formPane()
             }
@@ -329,7 +442,7 @@ export struct QuickSheet {
 
     if (this.sheetType === 'event') {
       this.fieldLabel('时间')
-      Text(`日期 ${this.planDate.length > 0 ? this.planDate : today()}`)
+      Text(this.eventDateText())
         .fontSize(10)
         .fontColor(C.ink3)
         .margin({ top: 6 })
@@ -436,11 +549,7 @@ export struct QuickSheet {
         .padding({ top: 13, bottom: 13 })
         .onClick(() => closeSheet())
 
-      Button(this.sheetType === 'task' ? '加上' :
-        this.sheetType === 'think' ? '存下' :
-          this.sheetType === 'mood' ? '记下' :
-            this.sheetType === 'growth' ? '记下' :
-              this.sheetType === 'habit' ? '创建' : '保存')
+      Button(this.saveLabel())
         .layoutWeight(1)
         .fontSize(12)
         .fontColor(C.paper)
@@ -509,6 +618,17 @@ export struct QuickSheet {
   }
 
   private titleOf(): string {
+    if (this.editId.length > 0) {
+      if (this.sheetType === 'task') {
+        return '编辑待办';
+      }
+      if (this.sheetType === 'habit') {
+        return '编辑习惯';
+      }
+      if (this.sheetType === 'event') {
+        return '编辑安排';
+      }
+    }
     if (this.sheetType === 'quote') {
       return '记下一点东西';
     }
@@ -531,6 +651,17 @@ export struct QuickSheet {
   }
 
   private subOf(): string {
+    if (this.editId.length > 0) {
+      if (this.sheetType === 'task') {
+        return '改一改，截止时间也可以换';
+      }
+      if (this.sheetType === 'habit') {
+        return '名称、频率、提醒时间都能改';
+      }
+      if (this.sheetType === 'event') {
+        return '换到别的时间点';
+      }
+    }
     if (this.sheetType === 'quote') {
       return '语录、灵感，或者从别处剪藏的一段';
     }
@@ -550,6 +681,25 @@ export struct QuickSheet {
       return '不管多小的事都算，不选分类也能存';
     }
     return '把这段时间留给它';
+  }
+
+  private saveLabel(): string {
+    if (this.editId.length > 0) {
+      return this.sheetType === 'task' ? '改好' : '保存';
+    }
+    if (this.sheetType === 'task') {
+      return '加上';
+    }
+    if (this.sheetType === 'think') {
+      return '存下';
+    }
+    if (this.sheetType === 'mood' || this.sheetType === 'growth') {
+      return '记下';
+    }
+    if (this.sheetType === 'habit') {
+      return '创建';
+    }
+    return '保存';
   }
 
   private placeholderOf(): string {

@@ -7,9 +7,9 @@
 
 import { common } from '@kit.AbilityKit';
 import { TodoRow, ThoughtRow, TodoBucket, ThoughtStatus } from '../db/Models';
-import { listTodos, setTodoDone, countTodos, TodoStat } from '../db/TodoRepo';
+import { listTodos, setTodoDone, removeTodo, countTodos, TodoStat } from '../db/TodoRepo';
 import { listThoughts, bumpThought } from '../db/ThoughtRepo';
-import { bumpRevision, setTodoPane, openSheet } from '../common/Bus';
+import { bumpRevision, setTodoPane, openSheet, openEdit } from '../common/Bus';
 import { syncTodoSummaryReminder } from '../common/BizReminder';
 import { C, S, SERIF, priorityColor, priorityLabel } from '../common/Theme';
 import { dueLabel, isOverdue, formatShortDate } from '../common/DateUtil';
@@ -259,6 +259,53 @@ export struct TodoView {
     .padding({ top: 14, bottom: 14 })
     .border({ width: { bottom: 1 }, color: C.ruleSoft })
     .alignItems(VerticalAlign.Top)
+    // 长按行呼出编辑 / 删除菜单
+    .bindContextMenu((): void => {
+      this.rowMenu(item)
+    }, ResponseType.LongPress)
+  }
+
+  /** 长按行的菜单：item 字段都是静态值，可作独立参数（AGENTS.md 3.10） */
+  @Builder
+  rowMenu(item: TodoRow) {
+    Menu() {
+      MenuItem({ content: '编辑' })
+        .onClick(() => openEdit('task', item.id))
+      MenuItem({ content: '删除' })
+        .onClick(() => this.confirmDelete(item))
+    }
+  }
+
+  private confirmDelete(item: TodoRow): void {
+    this.getUIContext().showAlertDialog({
+      title: '删除这条待办？',
+      message: `「${item.title}」删掉就找不回来了。`,
+      autoCancel: true,
+      alignment: DialogAlignment.Bottom,
+      primaryButton: {
+        value: '再想想',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '删除',
+        fontColor: C.cinnabar,
+        action: () => {
+          this.deleteRow(item);
+        }
+      }
+    });
+  }
+
+  private async deleteRow(item: TodoRow): Promise<void> {
+    await removeTodo(item.id);
+    bumpRevision();
+    await this.load();
+    if (item.bucket === TodoBucket.Today) {
+      // 删了今日待办，汇总提醒重算；通知失败不阻断写库
+      syncTodoSummaryReminder(getContext(this) as common.Context).catch(() => {
+      });
+    }
   }
 
   @Builder

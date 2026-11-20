@@ -247,3 +247,5 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 7. 完成实质工作后把结论追加到 `.workbuddy/memory/YYYY-MM-DD.md`；用户表达的长期偏好另写 `.workbuddy/memory/MEMORY.md`。**不要删除 `.workbuddy/` 目录**。
 8. 提交信息沿用 `feat: / fix: / refactor: / docs:`，一次提交只做一件事。
 9. **提交后直接推送远程**（用户 2026-11-13 明确）：commit 完紧接着 `git push origin main`，不要只留本地提交等用户来问。远端 `https://github.com/libliam/jian-yi-harmony.git`，分支 `main`。推送前确认 `.sign` / `local.properties` / build 产物已被 `.gitignore` 排除；若因网络或凭据失败，如实报告，不要擅自换协议或 force push。
+10. **真机验证纪律**（2026-11-20 沉淀）：破坏性操作（删除 / 编辑保存）一律用**自建临时数据**走完整闭环——UI 变化 + `devecocli device sqlite3` 查库双重确认，不留「只验了一半」的状态；用户真实数据只验只读路径（如只验菜单弹出，不点删除）。自动化验证前先确认**注入工具本身有效**（如在桌面空地长按能弹壁纸面板），证据不干净（如命中节点是 Scroll 而非行）不下结论。
+11. **疑难交互定位法**（2026-11-20 沉淀）：优先「**一个构建放多个候选方案**」分别落地到不同视图 / 分支条件，装一次包对照验证多组信号，比「改一版 → 装 → 验 → 再改」循环快数倍（3.11 的三信号实验即此法）。日常真机验证优先用 `uitest` 注入 + `dumpLayout`（3.11 工具箱，不烧 verify_ui 预算、坐标精确），verify_ui 留给收尾整体确认。

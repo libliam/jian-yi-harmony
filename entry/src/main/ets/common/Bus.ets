@@ -136,6 +136,11 @@ export function closeSub(): void {
   popPage();
 }
 
+/** 电子书阅读页：bookId 由调用方 setReaderBook 写入后跳转 */
+export function openReaderPage(): void {
+  pushPage('pages/ReaderPage');
+}
+
 export function openQuote(id: string): void {
   AppStorage.setOrCreate<string>(QUOTE_KEY, id);
   openSub('quote');

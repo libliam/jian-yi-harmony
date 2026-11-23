@@ -57,6 +57,16 @@ export async function listBooks(): Promise<BookRow[]> {
   return list;
 }
 
+/** 单本查询（含未软删检查）；不存在返回 null */
+export async function getBook(bookId: string): Promise<BookRow | null> {
+  const predicates = new relationalStore.RdbPredicates(TABLE);
+  predicates.equalTo('id', bookId).isNull('deleted_at');
+  const rs: relationalStore.ResultSet = await db().query(predicates);
+  const row: BookRow | null = rs.goToNextRow() ? mapBook(rs) : null;
+  rs.close();
+  return row;
+}
+
 /** 全局搜索用：书名或作者命中即可 */
 export async function searchBooks(keyword: string): Promise<BookRow[]> {
   const like: string = `%${keyword}%`;

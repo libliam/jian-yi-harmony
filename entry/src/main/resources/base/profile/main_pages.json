@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/SearchPage",
     "pages/SubPage",
-    "pages/GrowthPage"
+    "pages/GrowthPage",
+    "pages/ReaderPage"
   ]
 }

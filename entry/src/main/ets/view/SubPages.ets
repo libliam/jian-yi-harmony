@@ -706,7 +706,7 @@ export struct SubPages {
         .fontFamily(SERIF)
         .fontSize(20)
         .fontColor(C.ink)
-      Text('电子书正文解析属于路线图第 6 步，需要 Reader Kit 与真机调试。\n书架和阅读进度已经接上数据库，可以先在「阅读」页查看。')
+      Text('在「阅读」页点一本书就能打开正文阅读器。\n支持导入本地电子书（epub / txt / pdf / mobi），进度会自动记住。')
         .fontSize(11.5)
         .lineHeight(22)
         .fontColor(C.ink3)

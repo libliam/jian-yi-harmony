@@ -170,6 +170,18 @@
 - **卡片兼容性坑**：`Circle().fill()` 是 SDK 26+，工程兼容 SDK 24 会告警且旧机可能不显示；用通用属性 `Row().borderRadius().backgroundColor()` 画小圆点。`@Entry` 裸写（无 storage 参数）的告警是 ArkTS 卡片模板固有写法，框架自动注入 LocalStorage，可忽略。
 - `hvigorw assembleHap` 已通过；**真机待验**：桌面能否添加「简忆·今日」卡片、数据是否刷新（今日待办三条 + 剩余件数）、点卡片直达待办录入、长按图标快捷方式「记一笔/加待办」是否弹出并直达。
 
+### 3.14 电子书正文：Reader Kit 接入（2026-11-23）
+
+- **Reader Kit 在 `sdk/default/hms` 下，不在 `openharmony` 目录**——它是华为私有 Kit（`@kit.ReaderKit`，since 5.0.4/API16，phone 支持，非 systemApi）。工程 `runtimeOS: HarmonyOS` 可直接 import，无需改 build 配置；探针文件 import 三种导出编译通过后再正式接入。查找接口时别只在 openharmony/ets 里搜，会误判「不支持」。
+- **导出三件套**：`bookParser`（解析）、`ReadPageComponent`（阅读器 UI 组件）、`readerCore`（控制器）。
+- **导入管线**：`picker.DocumentViewPicker.select()` 返回 `file://` URI，`bookParser.getDefaultHandler()` 要**真实沙箱路径**，必须先 `fileIo.openSync(uri, READ_ONLY)` 拿 `File` → `fileIo.copyFileSync(file.fd, destPath)` 复制到 `context.filesDir/books/`。注意新版 fs：`openSync` 返回 `File` 对象（不是 number），`copyFileSync` 第一个参数吃 `file.fd`（number）。
+- **解析**：`handler.getBookInfo()` 取书名/作者，`handler.getSpineList()` 取章节列表，章节数存 book.totalPages；`addBook()` 入库。
+- **阅读页是独立 `@Entry`（pages/ReaderPage）**，不是 SubPage 二级页——`ReadPageComponent` 要占满整页。bookId 经 `uiReaderBook` (AppStorage) 传入，`setReaderBook()` + `Bus.openReaderPage()` 跳转。
+- **controller 装配时序**（在 `ReadPageComponent({ controller, readerCallback })` 的 `readerCallback` 里）：`ctrl.init(uiAbilityContext)` → `ctrl.registerBookParser(handler)` → `ctrl.setPageConfig(ReaderSetting)` → `ctrl.startPlay(spineIndex, domPos)`。`init` 返回 Promise，要 `.then()` 里按序做后面几步；加 `started` 防重入。
+- **ReaderSetting 13 字段全必填**：fontName/fontSize/fontWeight/fontColor/fontPath/lineHeight/nightMode/themeColor/themeBgImg/flipMode(string，如 'horizontal')/scaledDensity/viewPortWidth/viewPortHeight。纸墨配色用 Theme.ets 的 C.ink/C.paper。
+- **进度回写**：`ctrl.on('pageShow', cb)`，`PageDataInfo` 的 `resourceIndex`(章节) / `pageOffset` / `startDomPos` / `state`，state 要 `=== PageState.PAGE_ON_SHOW` 才算有效；用章节占比近似 percent，1.5s 节流后 `updateProgress()`。
+- `hvigorw assembleHap` 已通过；**真机待验**：picker 选书→导入→书架出现、ReadPageComponent 正文渲染、翻页进度回写、重进续读。
+
 ### 3.5 应用图标：分层资源与两处引用（2026-11-13）
 
 HarmonyOS 的桌面图标是**分层资源**，不是一张图：
@@ -269,12 +281,12 @@ $env:DEVECO_HOME = 'D:\Program Files\Huawei\DevEco Studio'
 | 状态栏 / 安全区 / 沉浸式 | 🟡 已做（组件级背景沉浸），待真机验证 | 4 个页面根 `.background(C.paper)` + EntryAbility 窗口底色 / 状态栏墨色图标，见 3.9 |
 | 通知提醒 | 🟡 已实现（每晚回顾 + 业务提醒 + 点击直达录入），待真机验证 | `Reminder.ets`：每晚 20:30 代理提醒 + 今日页开关；`BizReminder.ets`：待办汇总 / 习惯每日 / 日程一次性；`NotifyLaunch.ets` 点通知直达对应录入弹层，见 3.4；真机前需 AGC 开通能力 |
 | 桌面图标 / 启动窗口 | ✅ 已做，真机已确认 | 分层图标两层 1024² + `startIcon` 152²，纸墨风三方案可切换；11-13 用户确认桌面图标已变成简牍方案，见 3.5 |
-| 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
+| 电子书正文 | 🟡 已实现（Reader Kit），待真机验证 | picker 导入本地书→bookParser 解析入库→ReadPageComponent 渲染正文→pageShow 回写进度。见 3.14 |
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | 🟡 已实现，待真机验证 | 「简忆·今日」2*2 卡片显示今日待办三条 + 剩余件数，点卡片直达待办录入；图标长按「记一笔 / 加待办」直达录入。见 3.13 |
 
-**下一步优先级**：P1 已完成（通知点击直达录入、桌面卡片 / 图标快捷方式均于 11-23 接入代码、待真机验）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+**下一步优先级**：P1 已完成（通知点击直达录入、桌面卡片 / 图标快捷方式）；P2 Reader Kit 正文已于 11-23 接入代码待真机验，剩备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
 （11-23 更正：**日程日期选择早已落地**——`PlanView.load()` / `pickDay()` 都调 `setPlanDate()`，`QuickSheet.save()` 的 event 分支读 `uiPlanDate`，周条点哪天日程就落到哪天。此前「`uiPlanDate` 无人写入、日程恒为今天」的记录是过时的，不要再按它开工。）
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 

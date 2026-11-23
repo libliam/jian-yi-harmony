@@ -5,9 +5,13 @@
  * 仓库层不碰文件系统（项目规则 4），所以这里也不做导入文件。
  */
 
+import { common } from '@kit.AbilityKit';
 import { BookRow } from '../db/Models';
 import { listBooks, currentReading } from '../db/BookRepo';
-import { openSub } from '../common/Bus';
+import { bumpRevision } from '../common/Bus';
+import { openReaderPage } from '../common/Bus';
+import { setReaderBook } from '../pages/ReaderPage';
+import { importLocalBook } from '../common/BookImport';
 import { C, S, SERIF } from '../common/Theme';
 import { PageHead } from './Parts';
 
@@ -72,6 +76,29 @@ export struct ReaderView {
   private currentTotalPages(): number {
     const c: BookRow | null = this.current;
     return c === null ? 0 : c.totalPages;
+  }
+
+  /** 打开某本书：先写跨页参数，再压入系统页面栈 */
+  private openBook(b: BookRow): void {
+    setReaderBook(b.id);
+    openReaderPage();
+  }
+
+  /** 导入本地电子书：picker → 复制到沙箱 → 解析入库 → 刷新书架 */
+  private async importBook(): Promise<void> {
+    try {
+      const ctx: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+      const result = await importLocalBook(ctx);
+      if (result === null) {
+        this.hint = '没有导入书，或这本的格式暂时读不了（支持 epub / txt / pdf / mobi）。';
+        return;
+      }
+      this.hint = `已加入书架：《${result.title}》`;
+      bumpRevision();
+      await this.load();
+    } catch (err) {
+      this.hint = '导入失败，请确认文件格式后重试。';
+    }
   }
 
   @Builder
@@ -141,7 +168,12 @@ export struct ReaderView {
       .borderRadius(S.cardRadius)
       .backgroundColor(C.paper2)
       .margin({ bottom: 26 })
-      .onClick(() => openSub('reader'))
+      .onClick(() => {
+        const c: BookRow | null = this.current;
+        if (c !== null) {
+          this.openBook(c as BookRow);
+        }
+      })
     }
   }
 
@@ -169,12 +201,12 @@ export struct ReaderView {
 
           if (this.books.length === 0) {
             Column() {
-              Text('书架还空着。\n先记下一本想读的书，等阅读器接上就能直接续读。')
+              Text('书架还空着。\n导入一本本地电子书，就能在这里续读。')
                 .fontSize(11.5)
                 .lineHeight(22)
                 .fontColor(C.ink3)
                 .textAlign(TextAlign.Center)
-              Button('了解阅读器')
+              Button('导入第一本书')
                 .fontSize(11)
                 .fontColor(C.ink2)
                 .backgroundColor(C.paper)
@@ -182,7 +214,7 @@ export struct ReaderView {
                 .borderRadius(S.pill)
                 .padding({ left: 18, right: 18, top: 9, bottom: 9 })
                 .margin({ top: 18 })
-                .onClick(() => openSub('reader'))
+                .onClick(() => this.importBook())
             }
             .width('100%')
             .padding({ top: 30, bottom: 30 })
@@ -228,7 +260,7 @@ export struct ReaderView {
                 .width('48%')
                 .margin({ bottom: 14 })
                 .alignItems(VerticalAlign.Top)
-                .onClick(() => openSub('reader'))
+                .onClick(() => this.openBook(b))
               }, (b: BookRow) => b.id)
             }
             .width('100%')
@@ -243,9 +275,7 @@ export struct ReaderView {
             .width('100%')
             .padding({ top: 14, bottom: 14 })
             .margin({ top: 4 })
-            .onClick(() => {
-              this.hint = '导入与正文解析将在路线图第 6 步接入 Reader Kit，需要真机调试。';
-            })
+            .onClick(() => this.importBook())
 
           if (this.hint.length > 0) {
             Text(this.hint)

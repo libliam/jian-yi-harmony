@@ -16,6 +16,7 @@ import { notificationManager } from '@kit.NotificationKit';
 import { reminderAgentManager } from '@kit.BackgroundTasksKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { sheetWantAgent } from './NotifyLaunch';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'Reminder';
@@ -71,7 +72,9 @@ export async function enableReview(context: common.UIAbilityContext): Promise<bo
     title: '该回头看看今天了',
     content: '记一句今天的话，顺手看看还没做完的事。',
     expiredContent: '今天的回顾还没写',
-    notificationId: REVIEW_NOTIFICATION_ID
+    notificationId: REVIEW_NOTIFICATION_ID,
+    // 点通知直达微光录入（growth），见 NotifyLaunch.ets
+    wantAgent: sheetWantAgent('growth')
   };
 
   try {

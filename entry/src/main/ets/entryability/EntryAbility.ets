@@ -4,16 +4,25 @@ import { window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { initDb } from '../db/JianYiDb';
 import { C } from '../common/Theme';
+import { sheetFromWant, stashNotifySheet } from '../common/NotifyLaunch';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    // 点通知冷启动：先把目标录入类型暂存，Index 数据就绪后消费（见 NotifyLaunch.ets）
+    stashNotifySheet(sheetFromWant(want));
     // 提前预热数据库连接。Index 里还会 await 一次，initDb 用同一个 Promise 保证只建表一次。
     initDb(this.context).catch(() => {
       hilog.error(DOMAIN, 'testTag', '%{public}s', 'Failed to init jianyi.db');
     });
+  }
+
+  /** 点通知热启动：Ability 已在前台/后台实例复用，Want 走这里而不是 onCreate */
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onNewWant');
+    stashNotifySheet(sheetFromWant(want));
   }
 
   onDestroy(): void {

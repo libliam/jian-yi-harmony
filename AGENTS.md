@@ -101,6 +101,7 @@
 - **授权策略**：只在通知**已授权**时静默发布（`isNotificationEnabledSync`），写库路径绝不调 `requestEnableNotification` 弹窗——授权入口仍是今日页「每晚回顾提醒」开关；被拒过就静默跳过。
 - reminderId 映射存 Preferences `jianyi_meta`，不动表结构（P1 说的「字段已就绪」即指无需 DB v3）。
 - **删除即取消（2026-11-19 已接）**：三个视图都有长按菜单（编辑 / 删除），删除前 `showAlertDialog` 确认；`TodoView.deleteRow` → `syncTodoSummaryReminder` 重算汇总，`SubPages.deleteHabit` → `cancelHabitReminder`，`PlanView.deleteEvent` → `cancelEventReminder`，均 fire-and-forget + `.catch()`。编辑走 `openEdit(kind, id)`（Bus `EDIT_KEY`），保存后提醒「先取消再重发」（BizReminder 内部处理，改期到过去旧提醒同样被取消）。
+- **点击直达录入（2026-11-23 接入，`common/NotifyLaunch.ets`）**：四类提醒的 `ReminderRequest` 都带 `wantAgent`（`reminderAgentManager.WantAgent` 是 `{ pkgName, abilityName, parameters }` 纯数据对象，**不需要**异步的 `wantAgent.getWantAgent()`），`parameters.sheet` 分别是 task / habit / event / growth。点通知 → 系统拉起 EntryAbility：`onCreate`（冷启动）/ `onNewWant`（热启动）用 `sheetFromWant` 解析白名单 → `stashNotifySheet` 写 AppStorage `uiNotifySheet` → Index 的 `@StorageLink('uiNotifySheet') @Watch('onNotify')`（前台热启动）或 `aboutToAppear` 就绪后（冷启动）调 `consumeNotify()` → `takeNotifySheet` 取走并清空 → `switchTab(tabForNotifySheet)` + `openSheet`。**每次提醒发布都会重设 wantAgent**，所以 reminderId 重发后点击目标仍是最新类型。**真机未验**（同样卡 AGC 代理提醒能力）；验证时点通知应直接弹出对应录入弹层，不是只打开 App 首页。
 
 **真机怎么验证（2026-11-13）**：代理提醒由系统到点发出，不在 App 内弹窗，光看界面看不出来。按顺序做：
 
@@ -254,14 +255,15 @@ $env:DEVECO_HOME = 'D:\Program Files\Huawei\DevEco Studio'
 | 页面数据刷新 | ✅ 全局自动；下拉刷新部分 | 写库 → `bumpRevision()` → 各视图 `@Watch('onRev')` 重拉；回顾页另有原生 `Refresh` 下拉手势，其它页面待推广，见 3.8 |
 | 迁移 Navigation / NavPathStack | ⬜ 待做 | router 体系官方已不推荐；`Navigation` 支持分栏、路由拦截、引用传参 |
 | 状态栏 / 安全区 / 沉浸式 | 🟡 已做（组件级背景沉浸），待真机验证 | 4 个页面根 `.background(C.paper)` + EntryAbility 窗口底色 / 状态栏墨色图标，见 3.9 |
-| 通知提醒 | 🟡 已实现（每晚回顾 + 业务提醒），待真机验证 | `Reminder.ets`：每晚 20:30 代理提醒 + 今日页开关；`BizReminder.ets`：待办汇总 / 习惯每日 / 日程一次性，见 3.4；真机前需 AGC 开通能力 |
+| 通知提醒 | 🟡 已实现（每晚回顾 + 业务提醒 + 点击直达录入），待真机验证 | `Reminder.ets`：每晚 20:30 代理提醒 + 今日页开关；`BizReminder.ets`：待办汇总 / 习惯每日 / 日程一次性；`NotifyLaunch.ets` 点通知直达对应录入弹层，见 3.4；真机前需 AGC 开通能力 |
 | 桌面图标 / 启动窗口 | ✅ 已做，真机已确认 | 分层图标两层 1024² + `startIcon` 152²，纸墨风三方案可切换；11-13 用户确认桌面图标已变成简牍方案，见 3.5 |
 | 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
 
-**下一步优先级**：P1 微光二期（桌面卡片 + 通知点击直达录入）；P2 Reader Kit 正文、备份导出、月度成长小结导出、日程日期选择（`uiPlanDate` 仍无人写入，日程恒为今天）；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+**下一步优先级**：P1 微光二期（桌面卡片 / 图标快捷方式；通知点击直达录入已于 11-23 接入代码、待真机验）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+（11-23 更正：**日程日期选择早已落地**——`PlanView.load()` / `pickDay()` 都调 `setPlanDate()`，`QuickSheet.save()` 的 event 分支读 `uiPlanDate`，周条点哪天日程就落到哪天。此前「`uiPlanDate` 无人写入、日程恒为今天」的记录是过时的，不要再按它开工。）
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 
 ## 5. 给 Agent 的工作准则

@@ -24,6 +24,7 @@ import { notificationManager } from '@kit.NotificationKit';
 import { reminderAgentManager } from '@kit.BackgroundTasksKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { sheetWantAgent } from './NotifyLaunch';
 import { listTodos } from '../db/TodoRepo';
 import { TodoRow, TodoBucket, HabitPeriod } from '../db/Models';
 
@@ -157,7 +158,9 @@ export async function syncTodoSummaryReminder(context: common.Context): Promise<
       title: '今天还有事没做完',
       content: `还有 ${undone.length} 件今天的事，回头看看吧。`,
       expiredContent: '今天的待办还没清完',
-      notificationId: TODO_NOTIFICATION_ID
+      notificationId: TODO_NOTIFICATION_ID,
+      // 点通知直达待办录入（task）
+      wantAgent: sheetWantAgent('task')
     };
     const id: number = await reminderAgentManager.publishReminder(req);
     await p.put(KEY_TODO_SUMMARY, id);
@@ -201,7 +204,9 @@ export async function syncHabitReminder(
       title: name,
       content: '到打卡时间了，点开记一下。',
       expiredContent: '还没打卡',
-      notificationId: notificationIdOf(habitId, 11)
+      notificationId: notificationIdOf(habitId, 11),
+      // 点通知直达习惯录入（habit）
+      wantAgent: sheetWantAgent('habit')
     };
     const id: number = await reminderAgentManager.publishReminder(req);
     await p.put(key, id);
@@ -249,7 +254,9 @@ export async function publishEventReminder(
       title: title,
       content: '安排的时间到了。',
       expiredContent: '这段安排开始了',
-      notificationId: notificationIdOf(eventId, 23)
+      notificationId: notificationIdOf(eventId, 23),
+      // 点通知直达日程录入（event）
+      wantAgent: sheetWantAgent('event')
     };
     const id: number = await reminderAgentManager.publishReminder(req);
     await p.put(key, id);

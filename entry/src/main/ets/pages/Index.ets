@@ -17,6 +17,7 @@ import {
   ensureUiState, attachUiContext, bumpRevision,
   switchTab, openSheet, closeSheet
 } from '../common/Bus';
+import { takeNotifySheet, tabForNotifySheet } from '../common/NotifyLaunch';
 import { C, S, SERIF } from '../common/Theme';
 import { TodayView } from '../view/TodayView';
 import { QuoteView } from '../view/QuoteView';
@@ -43,6 +44,8 @@ const TABS: TabItem[] = [
 struct Index {
   @StorageLink('uiTab') currentTab: number = 0;
   @StorageLink('uiSheet') sheetType: string = '';
+  // 通知点击目标：@Watch 接应用已在前台时的热启动；冷启动走 aboutToAppear 后的 consumeNotify
+  @StorageLink('uiNotifySheet') @Watch('onNotify') notifySheet: string = '';
   @State ready: boolean = false;
   @State error: string = '';
   private lastBackAt: number = 0;
@@ -65,9 +68,29 @@ struct Index {
         // 同上
       }
       this.ready = true;
+      // 冷启动点通知进来：数据就绪后再打开目标录入弹层
+      this.consumeNotify();
     } catch (err) {
       this.error = '数据库没能打开。请确认设备存储可用后重新进入。';
     }
+  }
+
+  /** 应用已在前台时点通知，Want 经 onNewWant 落到 uiNotifySheet，由 @Watch 接住 */
+  onNotify(): void {
+    this.consumeNotify();
+  }
+
+  /** 取走通知点击意图，切到对应 tab 并打开录入弹层；取不到就什么都不做 */
+  private consumeNotify(): void {
+    if (!this.ready) {
+      return;
+    }
+    const sheet: string = takeNotifySheet();
+    if (sheet.length === 0) {
+      return;
+    }
+    switchTab(tabForNotifySheet(sheet));
+    openSheet(sheet);
   }
 
   /**

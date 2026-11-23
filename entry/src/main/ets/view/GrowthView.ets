@@ -17,6 +17,7 @@ import {
 } from '../common/GrowthTag';
 import { bumpRevision, closeGrowth, openSheet } from '../common/Bus';
 import { exportMonthlySummary, exportAllData, ExportResult } from '../common/DataExport';
+import { isLockEnabled, setLockEnabled, hasBiometric } from '../common/AppLock';
 import { common } from '@kit.AbilityKit';
 import { C, S, SERIF } from '../common/Theme';
 import { today, lastNDays, formatTime } from '../common/DateUtil';
@@ -61,6 +62,24 @@ export struct GrowthView {
   @State thenContent: string = '';
   @State thenDate: string = '';
   @State exportHint: string = '';
+  @State lockOn: boolean = false;
+  @State biometricReady: boolean = false;
+
+  /** 应用锁开关：开启前先确认设备录入了人脸 / 指纹，避免开了却解不开 */
+  private async toggleLock(on: boolean): Promise<void> {
+    if (on && !this.biometricReady) {
+      this.exportHint = '请先在系统设置里录入指纹或面容，再开启应用锁。';
+      return;
+    }
+    try {
+      const ctx: common.Context = getContext(this) as common.Context;
+      await setLockEnabled(ctx, on);
+      this.lockOn = on;
+      this.exportHint = on ? '应用锁已开启，每次回到简忆都要验证。' : '应用锁已关闭。';
+    } catch (err) {
+      this.exportHint = '设置失败，请重试。';
+    }
+  }
 
   /** 导出本月小结到用户选的位置 */
   private async exportMonth(): Promise<void> {
@@ -86,6 +105,13 @@ export struct GrowthView {
   }
 
   async aboutToAppear(): Promise<void> {
+    this.biometricReady = hasBiometric();
+    try {
+      const ctx: common.Context = getContext(this) as common.Context;
+      this.lockOn = await isLockEnabled(ctx);
+    } catch (err) {
+      this.lockOn = false;
+    }
     await this.load();
   }
 
@@ -512,6 +538,27 @@ export struct GrowthView {
           .margin({ top: 20 })
           .alignSelf(ItemAlign.Start)
           .onClick(() => this.exportBackup())
+
+        Row() {
+          Text('应用锁（指纹 / 面容）')
+            .fontSize(12)
+            .fontColor(C.ink2)
+          Toggle({ type: ToggleType.Switch, isOn: this.lockOn })
+            .selectedColor(C.cinnabar)
+            .width(40)
+            .height(22)
+            .onChange((on: boolean) => this.toggleLock(on))
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.SpaceBetween)
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 24 })
+
+        Text(this.exportHint)
+          .fontSize(10.5)
+          .fontColor(C.ink3)
+          .margin({ top: 8 })
+          .alignSelf(ItemAlign.Start)
       }
       .width('100%')
       .padding({ left: S.pad, right: S.pad, bottom: S.contentBottom })

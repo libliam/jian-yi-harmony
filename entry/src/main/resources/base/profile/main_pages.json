@@ -4,6 +4,7 @@
     "pages/SearchPage",
     "pages/SubPage",
     "pages/GrowthPage",
-    "pages/ReaderPage"
+    "pages/ReaderPage",
+    "pages/LockPage"
   ]
 }

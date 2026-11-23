@@ -18,6 +18,8 @@ import {
   switchTab, openSheet, closeSheet
 } from '../common/Bus';
 import { takeNotifySheet, tabForNotifySheet } from '../common/NotifyLaunch';
+import { isLockEnabled, isLocked, lock } from '../common/AppLock';
+import { openLock } from '../common/Bus';
 import { C, S, SERIF } from '../common/Theme';
 import { TodayView } from '../view/TodayView';
 import { QuoteView } from '../view/QuoteView';
@@ -52,6 +54,7 @@ struct Index {
 
   async aboutToAppear(): Promise<void> {
     ensureUiState();
+    attachUiContext(this.getUIContext());
     const context: common.Context = getContext(this) as common.Context;
     try {
       await initDb(context);
@@ -66,6 +69,17 @@ struct Index {
         await seedGrowthIfEmpty(context);
       } catch (growthErr) {
         // 同上
+      }
+      // 冷启动应用锁：开关开着就先锁上，onPageShow 会据此压入锁屏页
+      try {
+        if (await isLockEnabled(context)) {
+          lock();
+          // 冷启动时 onPageShow 可能已先跑完（当时 ready=false），这里补一次压栈。
+          // openLock 内部有 lockShown 去重，若 onPageShow 已压过不会重复。
+          openLock();
+        }
+      } catch (lockErr) {
+        // 读锁开关失败不影响主流程
       }
       this.ready = true;
       // 冷启动点通知进来：数据就绪后再打开目标录入弹层
@@ -101,6 +115,11 @@ struct Index {
     attachUiContext(this.getUIContext());
     if (this.ready) {
       bumpRevision();
+      // 应用锁：从后台回来 / 冷启动锁定后压入锁屏页。
+      // unlock() 已在认证成功时清掉标记，所以解锁 pop 回来不会再压。
+      if (isLocked()) {
+        openLock();
+      }
     }
   }
 

@@ -5,6 +5,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { initDb } from '../db/JianYiDb';
 import { C } from '../common/Theme';
 import { sheetFromWant, stashNotifySheet } from '../common/NotifyLaunch';
+import { isLockEnabled, lock } from '../common/AppLock';
 
 const DOMAIN = 0x0000;
 
@@ -71,12 +72,27 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
-    // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+    // 应用锁开启时，回到前台要重新验证。Index.onPageShow 看到 appLocked 会压入锁屏页。
+    // 冷启动的首帧由 Index.aboutToAppear 处理，这里只管「从后台回来」。
+    isLockEnabled(this.context).then((enabled: boolean) => {
+      if (enabled) {
+        lock();
+      }
+    }).catch(() => {
+      // 读开关失败就保持当前状态，不因应用锁影响主流程
+    });
   }
 
   onBackground(): void {
-    // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+    // 退到后台立即置锁。用 fire-and-forget + catch，不阻塞生命周期。
+    isLockEnabled(this.context).then((enabled: boolean) => {
+      if (enabled) {
+        lock();
+      }
+    }).catch(() => {
+      // 同上
+    });
   }
 }

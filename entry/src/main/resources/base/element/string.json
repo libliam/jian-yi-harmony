@@ -39,6 +39,10 @@
     {
       "name": "shortcut_add_todo_label",
       "value": "加待办"
+    },
+    {
+      "name": "biometric_permission_reason",
+      "value": "用于应用锁：用指纹或面容解锁，保护你的私人记录"
     }
   ]
 }

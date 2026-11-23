@@ -150,3 +150,25 @@ export function openQuote(id: string): void {
 export function setPlanDate(date: string): void {
   AppStorage.setOrCreate<string>(PLAN_DATE_KEY, date);
 }
+
+/**
+ * 锁屏页：独立页面压栈，系统返回键在 LockPage 内被吞掉。
+ * lockShown 只防「一次回前台重复 push」，不做持久化；锁屏页卸载时清掉。
+ */
+let lockShown: boolean = false;
+
+export function openLock(): void {
+  if (lockShown) {
+    return;
+  }
+  lockShown = true;
+  pushPage('pages/LockPage');
+}
+
+export function onLockShown(): void {
+  lockShown = true;
+}
+
+export function onLockGone(): void {
+  lockShown = false;
+}

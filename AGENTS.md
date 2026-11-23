@@ -192,6 +192,17 @@
 - **系统云备份**：`EntryBackupAbility` 骨架本就能工作——系统备份框架自动备份整个应用沙箱（含 jianyi.db 与 WAL，恢复时 SQLite 自动重放），`onBackup/onRestore` 空实现无需强加 checkpoint（RdbStore 没公开该接口）。别为了「有代码」乱改。
 - `hvigorw assembleHap` 已通过；**真机待验**：两个导出入口能拉起保存选择器、文件写对位置、内容完整。
 
+### 3.16 隐私增强：数据库加密 + 应用锁（2026-11-23）
+
+- **加密的正确开关是 `StoreConfig.encrypt?: boolean`，不是 securityLevel**。`securityLevel`（S1~S4）只是数据敏感度标记（影响备份/同步策略），真正的文件级 AES 加密靠 `encrypt: true`。之前 `securityLevel: S1` 是明文，**S4 不等于加密**。
+- **加密状态库创建后不能直接改**（SDK 原文）。升级已有明文库必须走官方 `RdbStore.rekeyEx(cryptoParam)`（@since 22，工程 compatibleSdk 24 满足）。`cryptoParam.encryptionKey` 传空 `Uint8Array()` = 让 RDB 自动生成并托管密钥。
+- **升级路径**（`db/JianYiDb.initDb`）：Preferences `jianyi_meta` 里的 `db_encrypted_v1` 标记判断是否已加密 → 未加密则 `encrypt:false` 打开旧库 → `rekeyEx()` 原地加密（**数据一行不丢，不重建库**）→ 以 `encrypt:true` + `SecurityLevel.S4` 重开 → 写标记。rekeyEx 失败则 catch 降级保持明文可用，绝不锁死用户数据；标记不写，下次启动重试。新装用户直接 `encrypt:true` 建库。
+- **标记与库同生命周期**：都在应用沙箱、卸载一并清除，不存在「标记说加密、库是明文」错位。
+- **应用锁**用 `@kit.UserAuthenticationKit` 的 `userAuth.getUserAuthInstance()` 拉系统原生人脸/指纹弹窗，不是自绘假锁。权限 `ohos.permission.ACCESS_BIOMETRIC`（normal 级，module.json5 声明 + string reason 即可，无需弹窗授权）。
+- **接口坑**：① `getAvailableStatus()`（@since 9 签名）返回 **void**，靠抛异常（12500010 未录入等）表示不可用，不能当 number 用；② 一个 `UserAuthInstance` 只能用一次，每次认证新建；③ `on('result')` 成功码是 `UserAuthResultCode.SUCCESS`（12500000）；④ challenge 要真字节数组，`Uint8Array(16)` 填随机数，别拿 UUID 字符串强转。
+- **锁的触发**：开关落 `jianyi_meta` 的 `app_lock_enabled`；「当前是否锁」落 `AppStorage('appLocked')`。Ability `onBackground`/`onForeground` 置锁，Index `aboutToAppear`（冷启动）+ `onPageShow`（回前台）看到锁就 `openLock()` push 独立 `pages/LockPage`。LockPage `onBackPress` 吞掉系统返回，认证成功 `unlock()` + `router.back()`。Bus 的 `lockShown` 防重复 push。开关在 GrowthView 底部，开启前用 `hasBiometric()` 探测设备已录入。
+- `hvigorw assembleHap` 已通过；**真机待验**：老库升级后数据完好且能开、rekeyEx 是否在你机型生效、锁屏拦截返回键、指纹/面容解锁、回前台重新锁。
+
 ### 3.5 应用图标：分层资源与两处引用（2026-11-13）
 
 HarmonyOS 的桌面图标是**分层资源**，不是一张图：
@@ -283,6 +294,8 @@ $env:DEVECO_HOME = 'D:\Program Files\Huawei\DevEco Studio'
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | 系统返回键 / 侧滑返回 | ✅ 已接，行为已真机确认 | 搜索页 / 二级页由系统页面栈自动 pop；`Index.onBackPress` 管录入弹层、回今日、二次退出 Toast；11-13 真机确认逐层返回与退出提示 |
+| 数据安全：数据库加密 | 🟡 已实现，待真机验证 | `StoreConfig.encrypt:true` + `SecurityLevel.S4`；老库走 `rekeyEx()` 原地加密不丢数据，失败降级保可用；见 3.16 |
+| 应用锁（指纹 / 面容） | 🟡 已实现，待真机验证 | 系统 `userAuth` 原生认证 + 独立 LockPage 吞返回键；回后台/冷启动重新锁；开关在 GrowthView 底部；见 3.16 |
 | 真实页面栈与系统转场 | ✅ 已做并真机确认（router） | 3 个 `@Entry` 页面 + `main_pages.json`；`UIContext.getRouter()` push / back |
 | 前后台 / 页面生命周期 | 🟡 部分 | `EntryAbility` 有 onForeground/onBackground、onCreate 预热 DB；三个页面 `onPageShow` 挂 UIContext，Index 回来刷新数据 |
 | 本地持久化 | ✅ | RelationalStore + Preferences，断网可用 |
@@ -296,7 +309,7 @@ $env:DEVECO_HOME = 'D:\Program Files\Huawei\DevEco Studio'
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
 | 桌面服务卡片 / 图标快捷方式 | 🟡 已实现，待真机验证 | 「简忆·今日」2*2 卡片显示今日待办三条 + 剩余件数，点卡片直达待办录入；图标长按「记一笔 / 加待办」直达录入。见 3.13 |
 
-**下一步优先级**：P1、P2 代码均已于 11-23 落地待真机验（通知直达、桌面卡片/快捷方式、Reader Kit 正文、月度小结导出、全量备份导出）；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急，按 project_rules 7 单独一轮）。
+**下一步优先级**：P1、P2 代码均已于 11-23 落地待真机验（通知直达、桌面卡片/快捷方式、Reader Kit 正文、月度小结导出、全量备份导出）；同日新增隐私增强（数据库加密 + 应用锁，待真机验，见 3.16）。P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急，按 project_rules 7 单独一轮）。云同步（本地为主 + 增量同步到你服务器）是后续独立大块，用户有现成服务器但选型未定。
 （11-23 更正：**日程日期选择早已落地**——`PlanView.load()` / `pickDay()` 都调 `setPlanDate()`，`QuickSheet.save()` 的 event 分支读 `uiPlanDate`，周条点哪天日程就落到哪天。此前「`uiPlanDate` 无人写入、日程恒为今天」的记录是过时的，不要再按它开工。）
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 

@@ -7,12 +7,16 @@
  * 存放位置：应用沙箱 databases/jianyi.db（由 RDB 自动管理）
  */
 
-import { relationalStore } from '@kit.ArkData';
+import { relationalStore, preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const STORE_NAME: string = 'jianyi.db';
+/** 加密升级标记：与提醒开关共用 jianyi_meta，卸载即清，不会出现「标记在库不在」 */
+const META_PREF: string = 'jianyi_meta';
+const ENC_FLAG_KEY: string = 'db_encrypted_v1';
 
 /** 每次改表结构，版本号 +1，并在 migrate() 里追加一段；禁止直接改建表语句 */
 const DB_VERSION: number = 2;
@@ -163,6 +167,34 @@ let store: relationalStore.RdbStore | null = null;
  */
 let pending: Promise<relationalStore.RdbStore> | null = null;
 
+/**
+ * 数据库是否已升级为加密。标记与库同生命周期（都在应用沙箱，卸载一并清除），
+ * 所以不存在「标记说加密、库其实是明文」的错位。
+ */
+async function isEncrypted(context: common.Context): Promise<boolean> {
+  const opts: preferences.Options = { name: META_PREF };
+  const p: preferences.Preferences = await preferences.getPreferences(context, opts);
+  return p.getSync(ENC_FLAG_KEY, false) === true;
+}
+
+async function markEncrypted(context: common.Context): Promise<void> {
+  const opts: preferences.Options = { name: META_PREF };
+  const p: preferences.Preferences = await preferences.getPreferences(context, opts);
+  await p.put(ENC_FLAG_KEY, true);
+  await p.flush();
+}
+
+/**
+ * 打开数据库。安全策略（2026-11-23）：
+ * - 新装：直接以 encrypt:true + S4 建库，从第一张表起就是密文；
+ * - 老用户：旧库是明文，先以 encrypt:false 打开，用官方 rekeyEx() 原地加密，
+ *   数据一行不丢，成功后写标记，后续都用 encrypt:true 打开；
+ * - 降级：rekeyEx 万一失败（设备不支持等），保持明文可用，不锁死用户数据，
+ *   标记不写，下次启动会再试一次。绝不为了加密把数据库弄成打不开。
+ *
+ * securityLevel 是敏感度标记（影响备份/同步策略），encrypt 才是文件级 AES 加密，
+ * 两者独立：加密库统一设 S4。
+ */
 export async function initDb(context: common.Context): Promise<relationalStore.RdbStore> {
   if (store) {
     return store;
@@ -171,19 +203,43 @@ export async function initDb(context: common.Context): Promise<relationalStore.R
     return pending;
   }
 
-  const config: relationalStore.StoreConfig = {
-    name: STORE_NAME,
-    securityLevel: relationalStore.SecurityLevel.S1
-  };
+  pending = (async (): Promise<relationalStore.RdbStore> => {
+    const encrypted: boolean = await isEncrypted(context);
+    const config: relationalStore.StoreConfig = {
+      name: STORE_NAME,
+      securityLevel: encrypted
+        ? relationalStore.SecurityLevel.S4
+        : relationalStore.SecurityLevel.S1,
+      encrypt: encrypted
+    };
 
-  pending = relationalStore.getRdbStore(context, config).then(
-    async (s: relationalStore.RdbStore): Promise<relationalStore.RdbStore> => {
-      await migrate(s);
-      store = s;
-      pending = null;
-      return s;
+    let s: relationalStore.RdbStore = await relationalStore.getRdbStore(context, config);
+
+    // 老库升级：明文打开 → rekeyEx 原地加密 → 以加密方式重开 → 写标记
+    if (!encrypted) {
+      try {
+        // 不给自定义 key，让系统生成并托管密钥；空 key 数组即「由 RDB 管理」
+        const cryptoParam: relationalStore.CryptoParam = {
+          encryptionKey: new Uint8Array()
+        };
+        await s.rekeyEx(cryptoParam);
+        s = await relationalStore.getRdbStore(context, {
+          name: STORE_NAME,
+          securityLevel: relationalStore.SecurityLevel.S4,
+          encrypt: true
+        });
+        await markEncrypted(context);
+      } catch (err) {
+        // 降级：保持明文库可用，绝不因加密失败阻断应用
+        hilog.error(0x0000, 'JianYiDb', 'rekeyEx failed, keep plaintext: %{public}s', JSON.stringify(err));
+      }
     }
-  );
+
+    await migrate(s);
+    store = s;
+    return s;
+  })();
+
   // 初始化失败要放行重试，否则这个 rejected Promise 会一直卡着
   pending.catch(() => {
     pending = null;

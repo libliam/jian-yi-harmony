@@ -14,6 +14,10 @@ import { C, S, SERIF, SANS } from '../common/Theme';
 import { DayCell, currentWeek, today, formatTime } from '../common/DateUtil';
 import { PageHead } from './Parts';
 
+interface PopupVisibleState {
+  isVisible: boolean;
+}
+
 @Component
 export struct PlanView {
   @StorageLink('dbRevision') @Watch('onRev') revision: number = 0;
@@ -23,6 +27,8 @@ export struct PlanView {
   @State rangeEvents: EventRow[] = [];
   @State slotMenuShown: boolean = false;
   @State menuEvent: EventRow | null = null;
+  @State menuX: number = 0;
+  @State menuY: number = 0;
 
   async aboutToAppear(): Promise<void> {
     await this.load();
@@ -48,43 +54,48 @@ export struct PlanView {
     this.events = await listEventsByDate(date);
   }
 
-  /** 长按日程的菜单：无参 @Builder，读 this.menuEvent */
+  /** 长按日程的纸墨气泡菜单：无参 @Builder，读 this.menuEvent */
   @Builder
   slotMenu() {
-    Menu() {
-      MenuItem({ content: '编辑' })
-        .onClick(() => {
-          const ev: EventRow | null = this.menuEvent;
-          if (ev !== null) {
-            openEdit('event', ev.id);
-          }
-        })
-      MenuItem(this.deleteItem())
-        .onClick(() => {
-          const ev: EventRow | null = this.menuEvent;
-          if (ev !== null) {
-            this.confirmDeleteEvent(ev);
-          }
-        })
+    Column() {
+      Row() {
+        Text('编辑')
+          .fontSize(14)
+          .fontFamily(SANS)
+          .fontColor(C.ink)
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .border({ width: { bottom: 1 }, color: C.ruleSoft })
+      .onClick(() => {
+        const ev: EventRow | null = this.menuEvent;
+        if (ev !== null) {
+          this.slotMenuShown = false;
+          openEdit('event', ev.id);
+        }
+      })
+      Row() {
+        Text('删除')
+          .fontSize(14)
+          .fontFamily(SANS)
+          .fontColor(C.cinnabar)
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .onClick(() => {
+        const ev: EventRow | null = this.menuEvent;
+        if (ev !== null) {
+          this.slotMenuShown = false;
+          this.confirmDeleteEvent(ev);
+        }
+      })
     }
-    .font({ size: 14, family: SANS })
-    .fontColor(C.ink)
+    .width(132)
     .backgroundColor(C.paper)
     .borderRadius(S.smallRadius)
-    .width(132)
-  }
-
-  /** 删除项单独走自定义 builder，才能给它朱砂色（MenuItem 自身没有 fontColor） */
-  @Builder
-  deleteItem() {
-    Row() {
-      Text('删除')
-        .fontSize(14)
-        .fontFamily(SANS)
-        .fontColor(C.cinnabar)
-    }
-    .width('100%')
-    .justifyContent(FlexAlign.Center)
+    .border({ width: 1, color: C.ruleSoft })
   }
 
   private confirmDeleteEvent(e: EventRow): void {
@@ -302,19 +313,31 @@ export struct PlanView {
     }
     .width('100%')
     .alignItems(VerticalAlign.Top)
-    // 长按弹菜单：显式手势置状态 + bindContextMenu12 的 isShown 受控形式
-    // （bindContextMenu8+ 的 ResponseType.LongPress 重载在 API 26 真机上不触发，见 AGENTS.md 3.11）
+    // 长按记下行与手指坐标，气泡贴在手指处（AGENTS.md 3.11）
     .gesture(LongPressGesture()
-      .onAction(() => {
+      .onAction((event: GestureEvent) => {
         this.menuEvent = e;
+        if (event.fingerList.length > 0) {
+          this.menuX = event.fingerList[0].localX;
+          this.menuY = event.fingerList[0].localY;
+        }
         this.slotMenuShown = true;
       }))
-    .bindContextMenu(
+    .bindPopup(
       this.slotMenuShown && this.menuEvent !== null && this.menuEvent.id === e.id,
-      this.slotMenu,
       {
-        onDisappear: (): void => {
-          this.slotMenuShown = false;
+        builder: this.slotMenu,
+        placement: Placement.TopLeft,
+        offset: { x: this.menuX, y: -this.menuY },
+        popupColor: C.paper,
+        backgroundBlurStyle: BlurStyle.NONE,
+        enableArrow: false,
+        mask: false,
+        autoCancel: true,
+        onStateChange: (state: PopupVisibleState): void => {
+          if (!state.isVisible) {
+            this.slotMenuShown = false;
+          }
         }
       })
   }

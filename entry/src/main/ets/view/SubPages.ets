@@ -27,6 +27,10 @@ interface HabitView {
   dots: boolean[];
 }
 
+interface PopupVisibleState {
+  isVisible: boolean;
+}
+
 @Component
 export struct SubPages {
   @StorageLink('uiSub') @Watch('onSubChange') subPage: string = '';
@@ -37,6 +41,8 @@ export struct SubPages {
   @State heat: number[] = [];
   @State habitMenuShown: boolean = false;
   @State menuHabit: HabitView | null = null;
+  @State menuX: number = 0;
+  @State menuY: number = 0;
   @State weekMoods: number[] = [0, 0, 0, 0, 0, 0, 0];
   @State moodRows: MoodRow[] = [];
   @State moodLevel: number = 0;
@@ -144,43 +150,48 @@ export struct SubPages {
     await this.loadHabits();
   }
 
-  /** 长按习惯行的菜单：无参 @Builder，读 this.menuHabit */
+  /** 长按习惯行的纸墨气泡菜单：无参 @Builder，读 this.menuHabit */
   @Builder
   habitMenu() {
-    Menu() {
-      MenuItem({ content: '编辑' })
-        .onClick(() => {
-          const h: HabitView | null = this.menuHabit;
-          if (h !== null) {
-            openEdit('habit', h.id);
-          }
-        })
-      MenuItem(this.deleteItem())
-        .onClick(() => {
-          const h: HabitView | null = this.menuHabit;
-          if (h !== null) {
-            this.confirmDeleteHabit(h);
-          }
-        })
+    Column() {
+      Row() {
+        Text('编辑')
+          .fontSize(14)
+          .fontFamily(SANS)
+          .fontColor(C.ink)
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .border({ width: { bottom: 1 }, color: C.ruleSoft })
+      .onClick(() => {
+        const h: HabitView | null = this.menuHabit;
+        if (h !== null) {
+          this.habitMenuShown = false;
+          openEdit('habit', h.id);
+        }
+      })
+      Row() {
+        Text('删除')
+          .fontSize(14)
+          .fontFamily(SANS)
+          .fontColor(C.cinnabar)
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .onClick(() => {
+        const h: HabitView | null = this.menuHabit;
+        if (h !== null) {
+          this.habitMenuShown = false;
+          this.confirmDeleteHabit(h);
+        }
+      })
     }
-    .font({ size: 14, family: SANS })
-    .fontColor(C.ink)
+    .width(132)
     .backgroundColor(C.paper)
     .borderRadius(S.smallRadius)
-    .width(132)
-  }
-
-  /** 删除项单独走自定义 builder，才能给它朱砂色（MenuItem 自身没有 fontColor） */
-  @Builder
-  deleteItem() {
-    Row() {
-      Text('删除')
-        .fontSize(14)
-        .fontFamily(SANS)
-        .fontColor(C.cinnabar)
-    }
-    .width('100%')
-    .justifyContent(FlexAlign.Center)
+    .border({ width: 1, color: C.ruleSoft })
   }
 
   private confirmDeleteHabit(h: HabitView): void {
@@ -407,18 +418,31 @@ export struct SubPages {
         .width('100%')
         .padding({ top: 16, bottom: 16 })
         .border({ width: { bottom: 1 }, color: C.ruleSoft })
-        // 长按弹菜单：显式手势置状态 + bindContextMenu12 的 isShown 受控形式
+        // 长按记下行与手指坐标，气泡贴在手指处（AGENTS.md 3.11）
         .gesture(LongPressGesture()
-          .onAction(() => {
+          .onAction((event: GestureEvent) => {
             this.menuHabit = h;
+            if (event.fingerList.length > 0) {
+              this.menuX = event.fingerList[0].localX;
+              this.menuY = event.fingerList[0].localY;
+            }
             this.habitMenuShown = true;
           }))
-        .bindContextMenu(
+        .bindPopup(
           this.habitMenuShown && this.menuHabit !== null && this.menuHabit.id === h.id,
-          this.habitMenu,
           {
-            onDisappear: (): void => {
-              this.habitMenuShown = false;
+            builder: this.habitMenu,
+            placement: Placement.TopLeft,
+            offset: { x: this.menuX, y: -this.menuY },
+            popupColor: C.paper,
+            backgroundBlurStyle: BlurStyle.NONE,
+            enableArrow: false,
+            mask: false,
+            autoCancel: true,
+            onStateChange: (state: PopupVisibleState): void => {
+              if (!state.isVisible) {
+                this.habitMenuShown = false;
+              }
             }
           })
       }, (h: HabitView) => `${h.id}|${h.done}|${h.streak}`)

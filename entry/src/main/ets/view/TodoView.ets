@@ -15,6 +15,10 @@ import { C, S, SERIF, SANS, priorityColor, priorityLabel } from '../common/Theme
 import { dueLabel, isOverdue, formatShortDate } from '../common/DateUtil';
 import { PageHead, EmptyState } from './Parts';
 
+interface PopupVisibleState {
+  isVisible: boolean;
+}
+
 @Component
 export struct TodoView {
   @StorageLink('dbRevision') @Watch('onRev') revision: number = 0;
@@ -26,6 +30,8 @@ export struct TodoView {
   @State laterStat: TodoStat = { total: 0, done: 0, overdue: 0 };
   @State menuTodo: TodoRow | null = null;
   @State todoMenuShown: boolean = false;
+  @State menuX: number = 0;
+  @State menuY: number = 0;
 
   async aboutToAppear(): Promise<void> {
     await this.load();
@@ -261,61 +267,77 @@ export struct TodoView {
     .padding({ top: 14, bottom: 14 })
     .border({ width: { bottom: 1 }, color: C.ruleSoft })
     .alignItems(VerticalAlign.Top)
-    // 长按先记下是哪一行；菜单内容读 this.menuTodo（AGENTS.md 3.10 安全路径①）
+    // 长按记下行与手指在行内的坐标，气泡贴在手指处（AGENTS.md 3.11）
     .gesture(LongPressGesture()
-      .onAction(() => {
+      .onAction((event: GestureEvent) => {
         this.menuTodo = item;
+        if (event.fingerList.length > 0) {
+          this.menuX = event.fingerList[0].localX;
+          this.menuY = event.fingerList[0].localY;
+        }
         this.todoMenuShown = true;
       }))
-    // bindContextMenu8+ 的 ResponseType.LongPress 重载在 API 26 真机上不触发，
-    // 统一改用 bindContextMenu12 的 isShown 受控形式（真机已验证，见 AGENTS.md 3.11）
-    .bindContextMenu(
+    .bindPopup(
       this.todoMenuShown && this.menuTodo !== null && this.menuTodo.id === item.id,
-      this.rowMenu,
       {
-        onDisappear: (): void => {
-          this.todoMenuShown = false;
+        builder: this.rowMenu,
+        placement: Placement.TopLeft,
+        offset: { x: this.menuX, y: -this.menuY },
+        popupColor: C.paper,
+        backgroundBlurStyle: BlurStyle.NONE,
+        enableArrow: false,
+        mask: false,
+        autoCancel: true,
+        onStateChange: (state: PopupVisibleState): void => {
+          if (!state.isVisible) {
+            this.todoMenuShown = false;
+          }
         }
       })
   }
 
-  /** 长按行的菜单：无参 @Builder，读 this.menuTodo */
+  /** 长按行的纸墨气泡菜单：无参 @Builder，读 this.menuTodo */
   @Builder
   rowMenu() {
-    Menu() {
-      MenuItem({ content: '编辑' })
-        .onClick(() => {
-          const item: TodoRow | null = this.menuTodo;
-          if (item !== null) {
-            openEdit('task', item.id);
-          }
-        })
-      MenuItem(this.deleteItem())
-        .onClick(() => {
-          const item: TodoRow | null = this.menuTodo;
-          if (item !== null) {
-            this.confirmDelete(item);
-          }
-        })
+    Column() {
+      Row() {
+        Text('编辑')
+          .fontSize(14)
+          .fontFamily(SANS)
+          .fontColor(C.ink)
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .border({ width: { bottom: 1 }, color: C.ruleSoft })
+      .onClick(() => {
+        const item: TodoRow | null = this.menuTodo;
+        if (item !== null) {
+          this.todoMenuShown = false;
+          openEdit('task', item.id);
+        }
+      })
+      Row() {
+        Text('删除')
+          .fontSize(14)
+          .fontFamily(SANS)
+          .fontColor(C.cinnabar)
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .onClick(() => {
+        const item: TodoRow | null = this.menuTodo;
+        if (item !== null) {
+          this.todoMenuShown = false;
+          this.confirmDelete(item);
+        }
+      })
     }
-    .font({ size: 14, family: SANS })
-    .fontColor(C.ink)
+    .width(132)
     .backgroundColor(C.paper)
     .borderRadius(S.smallRadius)
-    .width(132)
-  }
-
-  /** 删除项单独走自定义 builder，才能给它朱砂色（MenuItem 自身没有 fontColor） */
-  @Builder
-  deleteItem() {
-    Row() {
-      Text('删除')
-        .fontSize(14)
-        .fontFamily(SANS)
-        .fontColor(C.cinnabar)
-    }
-    .width('100%')
-    .justifyContent(FlexAlign.Center)
+    .border({ width: 1, color: C.ruleSoft })
   }
 
   private confirmDelete(item: TodoRow): void {

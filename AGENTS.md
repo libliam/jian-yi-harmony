@@ -137,7 +137,11 @@
 
 **真机调试工具箱（不烧 verify_ui 次数）**：`hdc shell uitest uiInput click/longClick/drag/keyEvent` 精确注入；`uitest dumpLayout -p` 拉节点树拿坐标与文本（比截图识别稳）；`uitest screenCap` + Pillow diff 判断界面是否变化；`devecocli device sqlite3 <设备db路径>` 直查真机库验证软删除。注意 `devecocli device app start` 需 `--ability EntryAbility`；锁屏要先 `device wake` + `device unlock`。
 
-**菜单样式对齐纸墨主题（2026-11-23）**：三处菜单原是系统默认白底黑字，改为 `Menu().font({ size: 14, family: SANS }).fontColor(C.ink).backgroundColor(C.paper).borderRadius(S.smallRadius).width(132)`。关键接口事实——`MenuItem` 自身**没有** `fontColor` / `fontSize`（SDK `component/menu_item.d.ts` 的 `MenuItemAttribute` 里查无此项），所以「删除」要单独染朱砂色必须走 `MenuItem` 的 `CustomBuilder` 重载：`MenuItem(this.deleteItem())`，builder 内 `Text('删除').fontColor(C.cinnabar)`；「编辑」继续用标准 `MenuItem({ content: '编辑' })`，继承 Menu 的 `fontColor`。`hvigorw assembleHap` 已通过，真机待验纸底是否覆盖系统子窗默认背景。
+**菜单样式与位置对齐纸墨主题（2026-11-23）**：三处菜单经两轮调整，最终形态是 `bindPopup` + 自绘纸墨气泡，贴在手指按下处。
+- **位置**：`bindContextMenu` 12+ 受控形式默认 `Placement.BottomLeft`（相对组件，不跟手指）；8+ 重载才是「显示在点击位置」但 API 26 真机长按不触发（见本节开头）。故改用 `LongPressGesture().onAction((event: GestureEvent) => ...)` 取 `event.fingerList[0].localX/localY` 存进 `@State menuX/menuY`，再 `.bindPopup(shown, { builder, placement: Placement.TopLeft, offset: { x: menuX, y: -menuY }, popupColor: C.paper, backgroundBlurStyle: BlurStyle.NONE, enableArrow: false, mask: false, autoCancel: true, onStateChange: ... })`，气泡向手指上方弹；靠近边缘系统自动调整。
+- **外观**：弃用系统 `Menu`/`MenuItem`（`MenuItem` 没有 `fontColor`），builder 内自绘 `Column { Row('编辑') + Row('删除') }`，宽 132 / 行高 44 / 分隔线 `C.ruleSoft` / 纸底 `C.paper` / 圆角 `S.smallRadius` / 删除 `C.cinnabar`。onClick 里先置 shown=false 再执行编辑 / 删除。
+- **ArkTS 坑**：① `GestureEvent` 没有 `localX/localY`，坐标在 `event.fingerList[0]`（`FingerInfo extends EventLocationInfo`）；② 回调参数不能写对象字面量类型 `(state: { isVisible: boolean })`，报 `arkts-no-obj-literals-as-types`，要定义 `interface PopupVisibleState { isVisible: boolean }`。
+- `hvigorw assembleHap` 已通过；**真机待验**：气泡是否贴手指、offset 方向（若反向把 `-menuY` 改成 `menuY`）、编辑 / 删除回调与软删除是否仍正常。
 
 ### 3.12 ArkTS 编译错误速查：throw / 枚举大小写 / build 与 @Builder 作用域 / 签名密钥（2026-11-20 沉淀）
 

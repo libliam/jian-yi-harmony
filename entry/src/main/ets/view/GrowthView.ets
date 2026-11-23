@@ -16,6 +16,8 @@ import {
   GROWTH_CATEGORIES, categoryForDb, categoryLabel, amountLabel
 } from '../common/GrowthTag';
 import { bumpRevision, closeGrowth, openSheet } from '../common/Bus';
+import { exportMonthlySummary, exportAllData, ExportResult } from '../common/DataExport';
+import { common } from '@kit.AbilityKit';
 import { C, S, SERIF } from '../common/Theme';
 import { today, lastNDays, formatTime } from '../common/DateUtil';
 
@@ -58,6 +60,30 @@ export struct GrowthView {
   @State hasThen: boolean = false;
   @State thenContent: string = '';
   @State thenDate: string = '';
+  @State exportHint: string = '';
+
+  /** 导出本月小结到用户选的位置 */
+  private async exportMonth(): Promise<void> {
+    try {
+      const ctx: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+      const month: string = monthPrefix(today());
+      const result: ExportResult = await exportMonthlySummary(ctx, this.summary, month, this.allRows);
+      this.exportHint = result.message;
+    } catch (err) {
+      this.exportHint = '导出失败，请重试。';
+    }
+  }
+
+  /** 导出全部数据备份（JSON） */
+  private async exportBackup(): Promise<void> {
+    try {
+      const ctx: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+      const result: ExportResult = await exportAllData(ctx);
+      this.exportHint = result.message;
+    } catch (err) {
+      this.exportHint = '导出失败，请重试。';
+    }
+  }
 
   async aboutToAppear(): Promise<void> {
     await this.load();
@@ -190,6 +216,11 @@ export struct GrowthView {
             .fontColor(C.ink2)
             .onClick(() => closeGrowth())
           Blank()
+          Text('导出小结')
+            .fontSize(11.5)
+            .fontColor(C.ink3)
+            .margin({ right: 16 })
+            .onClick(() => this.exportMonth())
           Text('＋ 记一点')
             .fontSize(12)
             .fontColor(C.cinnabar)
@@ -197,6 +228,14 @@ export struct GrowthView {
         }
         .width('100%')
         .padding({ top: 14, bottom: 18 })
+
+        if (this.exportHint.length > 0) {
+          Text(this.exportHint)
+            .fontSize(10.5)
+            .fontColor(C.sage)
+            .alignSelf(ItemAlign.Start)
+            .margin({ bottom: 8 })
+        }
 
         Text('微光 · 回顾')
           .fontFamily(SERIF)
@@ -465,6 +504,14 @@ export struct GrowthView {
             .margin({ top: 24 })
             .alignSelf(ItemAlign.Start)
         }
+
+        Text('导出全部数据备份')
+          .fontSize(10.5)
+          .fontColor(C.ink3)
+          .decoration({ type: TextDecorationType.Underline, color: C.rule })
+          .margin({ top: 20 })
+          .alignSelf(ItemAlign.Start)
+          .onClick(() => this.exportBackup())
       }
       .width('100%')
       .padding({ left: S.pad, right: S.pad, bottom: S.contentBottom })

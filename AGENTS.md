@@ -137,6 +137,8 @@
 
 **真机调试工具箱（不烧 verify_ui 次数）**：`hdc shell uitest uiInput click/longClick/drag/keyEvent` 精确注入；`uitest dumpLayout -p` 拉节点树拿坐标与文本（比截图识别稳）；`uitest screenCap` + Pillow diff 判断界面是否变化；`devecocli device sqlite3 <设备db路径>` 直查真机库验证软删除。注意 `devecocli device app start` 需 `--ability EntryAbility`；锁屏要先 `device wake` + `device unlock`。
 
+**菜单样式对齐纸墨主题（2026-11-23）**：三处菜单原是系统默认白底黑字，改为 `Menu().font({ size: 14, family: SANS }).fontColor(C.ink).backgroundColor(C.paper).borderRadius(S.smallRadius).width(132)`。关键接口事实——`MenuItem` 自身**没有** `fontColor` / `fontSize`（SDK `component/menu_item.d.ts` 的 `MenuItemAttribute` 里查无此项），所以「删除」要单独染朱砂色必须走 `MenuItem` 的 `CustomBuilder` 重载：`MenuItem(this.deleteItem())`，builder 内 `Text('删除').fontColor(C.cinnabar)`；「编辑」继续用标准 `MenuItem({ content: '编辑' })`，继承 Menu 的 `fontColor`。`hvigorw assembleHap` 已通过，真机待验纸底是否覆盖系统子窗默认背景。
+
 ### 3.12 ArkTS 编译错误速查：throw / 枚举大小写 / build 与 @Builder 作用域 / 签名密钥（2026-11-20 沉淀）
 
 首批真编译集中暴露的几类错误与修法，再遇到直接按表处理：
@@ -227,7 +229,15 @@ python design/generate_icon.py --scheme page   # page  墨页·一页记录
 
 **真机验证清单**：状态栏时间 / 电量呈墨色且底色为纸色无缝；底部手势条区域纸色、tab 标签不被遮挡；系统切深色模式后启动 / 页面转场不闪黑；录入弹层（QuickSheet）键盘弹出正常。`devecocli build` 已通过，效果待真机确认。
 
-**3.1 附注（2026-11-16）**：本机 Agent 环境已装 DevEco Studio 26.0（`DEVECO_HOME=D:\Program Files\Huawei\DevEco Studio`）与 `devecocli`，`arkts_check` + `devecocli build` 全流程可用，3.1「本机无法真编译」的说法已过时；但「接口名以 SDK `.d.ts` 为准」的教训仍然有效。
+**3.1 附注（2026-11-16，2026-11-23 修订）**：本机 Agent 环境已装 DevEco Studio 26.0，3.1「本机无法真编译」的说法已过时；但「接口名以 SDK `.d.ts` 为准」的教训仍然有效。**当前可用的编译命令**：`devecocli` 与 `arkts_check` 已不在 Agent 的 PATH 里，改用 DevEco 自带 hvigor，且两个环境变量必须临时注入，否则报 `Invalid value of 'DEVECO_SDK_HOME'`：
+
+```powershell
+$env:DEVECO_SDK_HOME = 'D:\Program Files\Huawei\DevEco Studio\sdk'
+$env:DEVECO_HOME = 'D:\Program Files\Huawei\DevEco Studio'
+& 'D:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.bat' assembleHap --mode module -p product=default --no-daemon
+```
+
+实测 BUILD SUCCESSFUL（约 47s）；警告均为存量（`Function may throw exceptions`、`getContext` / `showToast` 弃用）。
 
 ## 4. 系统能力清单（当前状态）
 

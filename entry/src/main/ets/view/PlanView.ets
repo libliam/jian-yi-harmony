@@ -10,7 +10,7 @@ import { EventRow } from '../db/Models';
 import { listEventsByDate, listEventsInRange, removeEvent } from '../db/EventRepo';
 import { setPlanDate, openSheet, openEdit, bumpRevision } from '../common/Bus';
 import { cancelEventReminder } from '../common/BizReminder';
-import { C, S, SERIF } from '../common/Theme';
+import { C, S, SERIF, SANS } from '../common/Theme';
 import { DayCell, currentWeek, today, formatTime } from '../common/DateUtil';
 import { PageHead } from './Parts';
 
@@ -59,7 +59,7 @@ export struct PlanView {
             openEdit('event', ev.id);
           }
         })
-      MenuItem({ content: '删除' })
+      MenuItem(this.deleteItem())
         .onClick(() => {
           const ev: EventRow | null = this.menuEvent;
           if (ev !== null) {
@@ -67,6 +67,24 @@ export struct PlanView {
           }
         })
     }
+    .font({ size: 14, family: SANS })
+    .fontColor(C.ink)
+    .backgroundColor(C.paper)
+    .borderRadius(S.smallRadius)
+    .width(132)
+  }
+
+  /** 删除项单独走自定义 builder，才能给它朱砂色（MenuItem 自身没有 fontColor） */
+  @Builder
+  deleteItem() {
+    Row() {
+      Text('删除')
+        .fontSize(14)
+        .fontFamily(SANS)
+        .fontColor(C.cinnabar)
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.Center)
   }
 
   private confirmDeleteEvent(e: EventRow): void {

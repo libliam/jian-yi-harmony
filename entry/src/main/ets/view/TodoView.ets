@@ -11,7 +11,7 @@ import { listTodos, setTodoDone, removeTodo, countTodos, TodoStat } from '../db/
 import { listThoughts, bumpThought } from '../db/ThoughtRepo';
 import { bumpRevision, setTodoPane, openSheet, openEdit } from '../common/Bus';
 import { syncTodoSummaryReminder } from '../common/BizReminder';
-import { C, S, SERIF, priorityColor, priorityLabel } from '../common/Theme';
+import { C, S, SERIF, SANS, priorityColor, priorityLabel } from '../common/Theme';
 import { dueLabel, isOverdue, formatShortDate } from '../common/DateUtil';
 import { PageHead, EmptyState } from './Parts';
 
@@ -290,7 +290,7 @@ export struct TodoView {
             openEdit('task', item.id);
           }
         })
-      MenuItem({ content: '删除' })
+      MenuItem(this.deleteItem())
         .onClick(() => {
           const item: TodoRow | null = this.menuTodo;
           if (item !== null) {
@@ -298,6 +298,24 @@ export struct TodoView {
           }
         })
     }
+    .font({ size: 14, family: SANS })
+    .fontColor(C.ink)
+    .backgroundColor(C.paper)
+    .borderRadius(S.smallRadius)
+    .width(132)
+  }
+
+  /** 删除项单独走自定义 builder，才能给它朱砂色（MenuItem 自身没有 fontColor） */
+  @Builder
+  deleteItem() {
+    Row() {
+      Text('删除')
+        .fontSize(14)
+        .fontFamily(SANS)
+        .fontColor(C.cinnabar)
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.Center)
   }
 
   private confirmDelete(item: TodoRow): void {

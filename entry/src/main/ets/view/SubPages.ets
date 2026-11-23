@@ -12,7 +12,7 @@ import { latestMood, listMoods, addMood } from '../db/MoodRepo';
 import { getEntry, toggleFavorite, removeEntry } from '../db/EntryRepo';
 import { bumpRevision, closeSub, openSheet, openEdit } from '../common/Bus';
 import { cancelHabitReminder } from '../common/BizReminder';
-import { C, S, SERIF, MOOD_LABELS } from '../common/Theme';
+import { C, S, SERIF, SANS, MOOD_LABELS } from '../common/Theme';
 import {
   DayCell, today, currentWeek, lastSevenDays, lastNDays,
   formatDotDate, shortWeekdayOf
@@ -155,7 +155,7 @@ export struct SubPages {
             openEdit('habit', h.id);
           }
         })
-      MenuItem({ content: '删除' })
+      MenuItem(this.deleteItem())
         .onClick(() => {
           const h: HabitView | null = this.menuHabit;
           if (h !== null) {
@@ -163,6 +163,24 @@ export struct SubPages {
           }
         })
     }
+    .font({ size: 14, family: SANS })
+    .fontColor(C.ink)
+    .backgroundColor(C.paper)
+    .borderRadius(S.smallRadius)
+    .width(132)
+  }
+
+  /** 删除项单独走自定义 builder，才能给它朱砂色（MenuItem 自身没有 fontColor） */
+  @Builder
+  deleteItem() {
+    Row() {
+      Text('删除')
+        .fontSize(14)
+        .fontFamily(SANS)
+        .fontColor(C.cinnabar)
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.Center)
   }
 
   private confirmDeleteHabit(h: HabitView): void {

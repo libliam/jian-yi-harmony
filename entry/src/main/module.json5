@@ -41,6 +41,12 @@
               "ohos.want.action.home"
             ]
           }
+        ],
+        "metadata": [
+          {
+            "name": "ohos.ability.shortcuts",
+            "resource": "$profile:shortcuts_config"
+          }
         ]
       }
     ],
@@ -55,7 +61,21 @@
             "name": "ohos.extension.backup",
             "resource": "$profile:backup_config"
           }
-        ],
+        ]
+      },
+      {
+        "name": "EntryFormAbility",
+        "srcEntry": "./ets/entryformability/EntryFormAbility.ets",
+        "label": "$string:EntryFormAbility_label",
+        "description": "$string:EntryFormAbility_desc",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
       }
     ]
   }

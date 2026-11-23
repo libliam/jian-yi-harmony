@@ -158,6 +158,18 @@
 - **签名配置是密钥，禁止入库**：`.sign/sign-config.json5` 含 `keyPassword` / `storePassword`。`.gitignore` 已加 `/.sign` 与 `/.cache`；该文件曾被暂存过，**提交前必须 `git status` 检查暂存区**，发现密钥文件用 `git rm --cached` 移出，文件保留本地（不影响 Studio 签名）。
 - **PowerShell `Add-Content` 追加 `.gitignore` 的坑**：原文件末行没有换行符时，追加内容会拼进最后一行（出现过 `/.appanalyzer/.sign` 连成一行导致规则静默失效）。追加后逐行查看验证再提交。
 
+### 3.13 桌面卡片与图标快捷方式（2026-11-23）
+
+微光二期「随时随地」入口，两块独立系统能力，一次落地：
+
+- **卡片 = FormExtensionAbility 三件套**：① `entryformability/EntryFormAbility.ets`（数据提供方，继承 `FormExtensionAbility`）；② `widget/pages/WidgetCard.ets`（卡片 UI）；③ `resources/base/profile/form_config.json`（描述卡片）。module.json5 里 `extensionAbilities` 加一项 `type: "form"`，`metadata.name = "ohos.extension.form"` / `resource = "$profile:form_config"`。
+- **卡片 UI 是独立编译单元**，不能 import 任何业务模块（Theme.ets / Repo 都不行）。颜色只能 `$r('app.color.*')` 引用 color.json（与 Theme.ets 三处对应）；数据只能 `@LocalStorageProp('字段')` 读，由 `formBindingData.createFormBindingData({...})` 的 key 注入。
+- **`onAddForm` 必须同步返回**：先返回占位数据，再异步 `initDb(context)` + 查库 + `formProvider.updateForm(formId, ...)` 刷新。formId 从 `want.parameters[formInfo.FormParam.IDENTITY_KEY]` 取。卡片进程与主进程是两套模块实例，要自己 initDb；查库失败保留占位等下次定时刷新，别让 Promise reject。
+- **点击卡片/快捷方式都复用通知直达链路**：`FormLink({ action: 'router', abilityName: 'EntryAbility', params: { sheet: 'task' } })` 的 params 会透传到目标 `Want.parameters`；快捷方式 `shortcuts_config.json` 的 `wants[].parameters` 同理。两者带的 `sheet` 都被 `NotifyLaunch.sheetFromWant()` 解析 → `EntryAbility.onCreate/onNewWant` 暂存 → `Index` 消费打开录入弹层。四类 sheet 值：`task`/`habit`/`event`/`growth`。
+- **快捷方式配置**：`resources/base/profile/shortcuts_config.json`（顶层 `shortcuts[]`，每项 `shortcutId`/`label`/`icon`/`wants[]`；`icon` 必须 `$media:` 引用，`parameters` 值必须是字符串）。挂在 EntryAbility 下：`metadata.name = "ohos.ability.shortcuts"` / `resource = "$profile:shortcuts_config"`。
+- **卡片兼容性坑**：`Circle().fill()` 是 SDK 26+，工程兼容 SDK 24 会告警且旧机可能不显示；用通用属性 `Row().borderRadius().backgroundColor()` 画小圆点。`@Entry` 裸写（无 storage 参数）的告警是 ArkTS 卡片模板固有写法，框架自动注入 LocalStorage，可忽略。
+- `hvigorw assembleHap` 已通过；**真机待验**：桌面能否添加「简忆·今日」卡片、数据是否刷新（今日待办三条 + 剩余件数）、点卡片直达待办录入、长按图标快捷方式「记一笔/加待办」是否弹出并直达。
+
 ### 3.5 应用图标：分层资源与两处引用（2026-11-13）
 
 HarmonyOS 的桌面图标是**分层资源**，不是一张图：
@@ -260,9 +272,9 @@ $env:DEVECO_HOME = 'D:\Program Files\Huawei\DevEco Studio'
 | 电子书正文 | 🟡 | 书架与进度已接库，正文解析待 Reader Kit |
 | 云备份与导出 | ⬜ | `EntryBackupAbility` 骨架已有，导出逻辑待写 |
 | 微光 · 随手记与回顾 | 🟡 真机已能运行，补标待复验 | `growth` 表 + 今日页一步录入 + 独立回顾页 + 搜索接入；11-16 用户真机确认 DB v2 迁移、页面跳转、录入都正常，仅回顾页补标无反应（ForEach key，见 3.7，已修未复验）。设计取舍见 3.6 |
-| 桌面服务卡片 / 图标快捷方式 | ⬜ 未做 | 微光二期的「随时随地」入口，需 `FormExtensionAbility` / shortcuts，属系统能力 |
+| 桌面服务卡片 / 图标快捷方式 | 🟡 已实现，待真机验证 | 「简忆·今日」2*2 卡片显示今日待办三条 + 剩余件数，点卡片直达待办录入；图标长按「记一笔 / 加待办」直达录入。见 3.13 |
 
-**下一步优先级**：P1 微光二期（桌面卡片 / 图标快捷方式；通知点击直达录入已于 11-23 接入代码、待真机验）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
+**下一步优先级**：P1 已完成（通知点击直达录入、桌面卡片 / 图标快捷方式均于 11-23 接入代码、待真机验）；P2 Reader Kit 正文、备份导出、月度成长小结导出；P3 迁移 `Navigation` + `NavPathStack`（router 已真机验证，只是 API 现代化，不急）。
 （11-23 更正：**日程日期选择早已落地**——`PlanView.load()` / `pickDay()` 都调 `setPlanDate()`，`QuickSheet.save()` 的 event 分支读 `uiPlanDate`，周条点哪天日程就落到哪天。此前「`uiPlanDate` 无人写入、日程恒为今天」的记录是过时的，不要再按它开工。）
 （11-12 定的 P0「真实页面栈」已于 11-13 用 router 方案落地，**11-13 晚真机确认行为达标**；迁移 `Navigation` 因此只是 API 现代化，不再紧急，别在功能还没铺完时急着动它。按 project_rules 7「一次提交只做一件事」留作单独一轮。）
 

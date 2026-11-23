@@ -15,6 +15,30 @@
     {
       "name": "reminder_permission_reason",
       "value": "用于在你设定的时间提醒你回顾今天、记录待办与习惯"
+    },
+    {
+      "name": "EntryFormAbility_label",
+      "value": "简忆 · 今日"
+    },
+    {
+      "name": "EntryFormAbility_desc",
+      "value": "桌面卡片：今日待办速览，点一下记新事"
+    },
+    {
+      "name": "widget_today_display_name",
+      "value": "简忆 · 今日"
+    },
+    {
+      "name": "widget_today_desc",
+      "value": "今日待办速览，点一下记新事"
+    },
+    {
+      "name": "shortcut_quick_note_label",
+      "value": "记一笔"
+    },
+    {
+      "name": "shortcut_add_todo_label",
+      "value": "加待办"
     }
   ]
 }

@@ -1,0 +1,36 @@
+{
+  "shortcuts": [
+    {
+      "shortcutId": "shortcut_quick_note",
+      "label": "$string:shortcut_quick_note_label",
+      "icon": "$media:startIcon",
+      "visible": true,
+      "wants": [
+        {
+          "bundleName": "com.example.harmonyjianyi",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "sheet": "growth"
+          }
+        }
+      ]
+    },
+    {
+      "shortcutId": "shortcut_add_todo",
+      "label": "$string:shortcut_add_todo_label",
+      "icon": "$media:startIcon",
+      "visible": true,
+      "wants": [
+        {
+          "bundleName": "com.example.harmonyjianyi",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "sheet": "task"
+          }
+        }
+      ]
+    }
+  ]
+}
